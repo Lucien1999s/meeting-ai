@@ -21,10 +21,6 @@ class TextConverterToReport:
             - The length of the returned list will be equal to the specified number of portions.
         """
 
-        parts = ["會議記錄部分一", "會議記錄部分二", "會議記錄部分三", "會議記錄部分四"]
-
-        return parts
-
     def call_openaiapi(self, prompt):
         """
         Calls the OpenAI API to get a response for the given prompt.
@@ -43,9 +39,6 @@ class TextConverterToReport:
             - Each dictionary in the prompt list should have 'role' and 'content' keys, corresponding to the role and content values.
             - The function internally sets up the necessary parameters such as model, max_tokens, temperature, and prompt format for the API call.
         """
-        output = prompt + ": OpenAI 會議總結資訊"
-
-        return output
 
     def generate_report(self, meeting_topic, ori_text):
         """
@@ -62,8 +55,3 @@ class TextConverterToReport:
             - The transcript file should be in a plain text format.
             - The generated meeting summary includes key points and highlights from the transcript.
         """
-
-        prompt = "請幫我總結..."
-        final = self.call_openaiapi(prompt)
-
-        return final_report
