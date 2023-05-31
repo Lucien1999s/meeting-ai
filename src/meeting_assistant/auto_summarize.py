@@ -3,7 +3,7 @@ import time
 import os
 
 
-class TextConverterToReport:
+class MeetingReportGenerator:
     def split_text(self, text, num_parts):
         """
         Splits the given text content into specified portions.
