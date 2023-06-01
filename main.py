@@ -1,5 +1,5 @@
-from src.meeting_assistant.speech_to_text import SpeechToTextConverter
-from src.meeting_assistant.auto_summarize import MeetingReportGenerator
+from src.speech_to_text import SpeechToTextConverter
+from src.auto_summarize import MeetingReportGenerator
 
 
 def main():
