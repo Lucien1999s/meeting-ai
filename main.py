@@ -1,3 +1,18 @@
+"""
+Main code: Extracts text from an audio file and generates a meeting report.
+
+This function performs the following steps:
+1. Retrieves the audio file from the specified URL.
+2. Converts the speech to text using the SpeechToTextConverter class.
+3. Generates a meeting report using the MeetingReportGenerator class.
+4. Prints the meeting report.
+
+Args:
+    None
+
+Returns:
+    None
+"""
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import MeetingReportGenerator
 

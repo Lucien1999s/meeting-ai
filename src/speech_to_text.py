@@ -1,13 +1,39 @@
+"""
+This module provides a SpeechToTextConverter class for converting speech to text using the OpenAI API.
+
+It includes the following functionalities:
+- Conversion of audio files to MP3 format
+- Splitting audio files into segments
+- Performing speech-to-text conversion on segmented audio files
+
+Usage:
+1. Initialize the SpeechToTextConverter object.
+2. Call the `speech_to_text_go` method to convert an audio file to text.
+
+Example:
+    converter = SpeechToTextConverter()
+    text_result = converter.speech_to_text_go(file_path)
+
+"""
+import os
+import math
 from pydub import AudioSegment
 import openai
-import math
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class SpeechToTextConverter:
+    """
+    SpeechToTextConverter class provides methods for converting speech to text.
+
+    It uses the OpenAI API for performing speech-to-text conversion.
+
+    Attributes:
+        model (str): The model used for transcription.
+    """
+
     def __init__(self):
         self.model = "whisper-1"
         openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -18,9 +44,9 @@ class SpeechToTextConverter:
 
         Args:
             file_path (str): The path of the audio file to be converted.
-        
+
         Returns:
-            None. Changes are made directly. 
+            None. Changes are made directly.
 
         """
         if os.path.isdir(file_path):
@@ -38,7 +64,7 @@ class SpeechToTextConverter:
             audio.export(mp3_path, format="mp3")
 
             print("Converted to MP3:", mp3_path)
-    
+
     @staticmethod
     def _split_audio(file_path, duration=900):
         """
@@ -101,10 +127,9 @@ class SpeechToTextConverter:
             file_path (str): The path of the audio file to be converted.
 
         Returns:
-            str: The path of the generated text file.
-            
+            str: The transcript content.
+
         """
-        data_path = os.path.dirname(file_path)
         self._convert_to_mp3(file_path)
         audio_path = self._split_audio(file_path)
         return self._speech_to_text(audio_path)
