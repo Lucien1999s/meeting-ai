@@ -26,16 +26,19 @@ In order to realize the automation of meeting records, this project will hand ov
 git clone ssh://git@biglab.buygta.today:8931/bigdata/ai-meeting-project.git
 ```
 
-### 2. Setting .env with .env.example
+### 2. Set up .env with .env.example
 
 
-### 3. Install requirements
+### 3. Set up config.json
+
+
+### 4. Install requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Launch it (Not yet under development)
+### 5. Launch it (Not yet under development)
 
 ```bash
 python main.py

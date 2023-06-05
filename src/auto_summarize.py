@@ -76,7 +76,6 @@ class MeetingReportGenerator:
             - The generated meeting report includes key points and highlights from the transcript.
         """
 
-        prompt = "Please summarize..."
-        final_report = self.call_openaiapi(prompt)
+        final_report = "After summarize..."+ meeting_topic + "\n" + ori_text
 
         return final_report

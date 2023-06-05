@@ -15,6 +15,8 @@ Returns:
 """
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import MeetingReportGenerator
+import json
+import os
 
 
 def main():
@@ -33,13 +35,23 @@ def main():
     Returns:
         None
     """
-    file_url = "https://drive.google.com/file/d/1-g_Zj2IFbV_4BOCU78dCbU5nx8wd5SfE/view?usp=sharing"
+    # Load config from JSON file
+    config_path = "config.json"
+    with open(config_path) as config_file:
+        config = json.load(config_file)
 
-    stt_converter = SpeechToTextConverter()
-    text_result_path = stt_converter.speech_to_text_go(file_url)
+    file_url = config["file_url"]
+    meeting_name = config["meeting_name"]
+
+    if not os.path.exists(file_url):
+        print("File not found:", file_url)
+        return
+
+    converter = SpeechToTextConverter()
+    transcript = converter.speech_to_text_go(file_url)
 
     report_generator = MeetingReportGenerator()
-    meeting_report = report_generator.generate_report("會議名稱", text_result_path)
+    meeting_report = report_generator.generate_report(meeting_name, transcript)
 
     print(meeting_report)
 
