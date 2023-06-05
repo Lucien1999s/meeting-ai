@@ -36,3 +36,6 @@ nosetests.xml
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Ignore data folder
+data/

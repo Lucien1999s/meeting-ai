@@ -46,24 +46,27 @@ class SpeechToTextConverter:
             file_path (str): The path of the audio file to be converted.
 
         Returns:
-            None. Changes are made directly.
+            file_path (str): The path of the mp3 audio file.
 
         """
-        if os.path.isdir(file_path):
-            for file_name in os.listdir(file_path):
-                if file_name == ".DS_Store":
-                    continue
-                sub_file_path = os.path.join(file_path, file_name)
-                self._convert_to_mp3(sub_file_path)
-        elif not file_path.lower().endswith(".mp3"):
-            audio = AudioSegment.from_file(file_path)
+        try:
+            if file_path.lower().endswith((".m4a", ".wav")):
+                audio = AudioSegment.from_file(file_path)
 
-            dir_name, base_name = os.path.splitext(file_path)
-            mp3_path = os.path.join(dir_name, base_name + ".mp3")
+                dir_name, base_name = os.path.split(file_path)
+                base_name = os.path.splitext(base_name)[0]
+                mp3_path = os.path.join(dir_name, base_name + ".mp3")
 
-            audio.export(mp3_path, format="mp3")
+                audio.export(mp3_path, format="mp3")
 
-            print("Converted to MP3:", mp3_path)
+                print("Converted to MP3:", mp3_path)
+                file_path = mp3_path
+        except FileNotFoundError:
+            print("File not found:", file_path)
+        except Exception as e:
+            print("An error occurred while converting to MP3:", str(e))
+
+        return file_path
 
     @staticmethod
     def _split_audio(file_path, duration=900):
@@ -81,12 +84,17 @@ class SpeechToTextConverter:
         audio_data = AudioSegment.from_file(file_path, format="mp3")
         num_segments = math.ceil(audio_data.duration_seconds / duration)
 
-        output_dir = os.path.join(os.path.dirname(file_path), "segments")
+        output_dir = os.path.join(
+            os.path.dirname(file_path),
+            f"{os.path.splitext(os.path.basename(file_path))[0]}_segments",
+        )
         os.makedirs(output_dir, exist_ok=True)
 
         for i in range(num_segments):
             start = i * duration * 1000
-            end = min(start + duration * 1000, len(audio_data))
+            end = (i + 1) * duration * 1000
+            if end > len(audio_data):
+                end = len(audio_data)
             segment = audio_data[start:end]
             output_path = os.path.join(output_dir, f"segment{i+1}.mp3")
             segment.export(output_path, format="mp3")
@@ -130,6 +138,6 @@ class SpeechToTextConverter:
             str: The transcript content.
 
         """
-        self._convert_to_mp3(file_path)
-        audio_path = self._split_audio(file_path)
+        mp3_path = self._convert_to_mp3(file_path)
+        audio_path = self._split_audio(mp3_path)
         return self._speech_to_text(audio_path)
