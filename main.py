@@ -14,7 +14,7 @@ Returns:
     None
 """
 from src.speech_to_text import SpeechToTextConverter
-from src.auto_summarize import MeetingReportGenerator
+from src.auto_summarize import ReportGenerator
 import json
 import os
 
@@ -26,7 +26,7 @@ def main():
     This function performs the following steps:
     1. Retrieves the audio file from the specified URL.
     2. Converts the speech to text using the SpeechToTextConverter class.
-    3. Generates a meeting report using the MeetingReportGenerator class.
+    3. Generates a meeting report using the ReportGenerator class.
     4. Prints the meeting report.
 
     Args:
@@ -50,7 +50,7 @@ def main():
     converter = SpeechToTextConverter()
     transcript = converter.speech_to_text_go(file_url)
 
-    report_generator = MeetingReportGenerator()
+    report_generator = ReportGenerator()
     meeting_report = report_generator.generate_report(meeting_name, transcript)
 
     print(meeting_report)

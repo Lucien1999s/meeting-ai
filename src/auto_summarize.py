@@ -7,18 +7,18 @@ It includes the following functionalities:
 - Generating meeting reports from transcript files
 
 Usage:
-1. Initialize the MeetingReportGenerator object.
+1. Initialize the ReportGenerator object.
 2. Call the `generate_report` method to generate a meeting report.
 
 Example:
-    generator = MeetingReportGenerator()
+    generator = ReportGenerator()
     meeting_report = generator.generate_report(meeting_topic, ori_text)
 """
 
 
-class MeetingReportGenerator:
+class ReportGenerator:
     """
-    MeetingReportGenerator class provides methods for generating meeting reports using the OpenAI API.
+    ReportGenerator class provides methods for generating meeting reports using the OpenAI API.
     """
 
     def split_text(self, text, num_parts):
