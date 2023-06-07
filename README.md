@@ -10,6 +10,7 @@ In order to realize the automation of meeting records, this project will hand ov
 ```
 .
 ├── README.md
+├── config.json
 ├── main.py
 ├── requirements.txt
 ├── src
