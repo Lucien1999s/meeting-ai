@@ -19,6 +19,7 @@ import os
 import math
 from pydub import AudioSegment
 import openai
+from src.record_usage import UsageRecorder
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,13 +33,19 @@ class SpeechToTextConverter:
 
     Attributes:
         model (str): The model used for transcription.
+
     """
 
     def __init__(self):
+        """
+        Initializes a new instance of the SpeechToTextConverter class.
+
+        The constructor sets the default model to "whisper-1" and loads the OpenAI API key from the environment.
+        """
         self.model = "whisper-1"
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-    def _convert_to_mp3(self, file_path):
+    def _convert_to_mp3(self, file_path: str) -> str:
         """
         Converts an audio file to MP3 format.
 
@@ -66,10 +73,11 @@ class SpeechToTextConverter:
         except Exception as e:
             print("An error occurred while converting to MP3:", str(e))
 
+        print("Successfully converted to MP3")
         return file_path
 
     @staticmethod
-    def _split_audio(file_path, duration=900):
+    def _split_audio(file_path: str, duration: int = 900) -> str:
         """
         Splits an audio file into segments.
 
@@ -102,7 +110,7 @@ class SpeechToTextConverter:
         print("Audio split completely. Saved in:", output_dir)
         return output_dir
 
-    def _speech_to_text(self, audios_path):
+    def _speech_to_text(self, audios_path: str) -> str:
         """
         Performs speech-to-text conversion on segmented audio files and generates a text file.
 
@@ -113,6 +121,10 @@ class SpeechToTextConverter:
             str: The extracted text from all transcriptions.
 
         """
+        path = os.path.dirname(audios_path)
+        base_name = os.path.basename(audios_path).replace("_segments", "")
+        transcriptions_path = os.path.join(path, base_name + "_transcript.txt")
+
         transcriptions = []
 
         for file_name in sorted(os.listdir(audios_path)):
@@ -123,11 +135,36 @@ class SpeechToTextConverter:
                     transcription = transcript["text"].replace(" ", "\n")
                     transcriptions.append(transcription)
 
+        with open(transcriptions_path, "w") as f:
+            f.write("\n".join(transcriptions))
+
         extracted_text = "\n".join(transcriptions)
-        print("Complete speech to text")
+        print("Complete speech to text:", extracted_text)
         return extracted_text
 
-    def speech_to_text_go(self, file_path):
+    def _calculate_audio_minutes(audio_path: str) -> int:
+        """Calculate the duration of an audio file in minutes.
+
+        Args:
+            audio_path (str): The path of the audio file.
+
+        Raises:
+            FileNotFoundError: If the specified audio file cannot be found.
+
+        Returns:
+            int: The duration of the audio file in minutes.
+
+        """
+        try:
+            audio = AudioSegment.from_file(audio_path)
+        except FileNotFoundError:
+            raise FileNotFoundError("Can't found audio file.")
+
+        duration_seconds = len(audio) / 1000
+        duration_minutes = math.ceil(duration_seconds / 60)
+        return duration_minutes
+
+    def speech_to_text_go(self, file_path: str) -> str:
         """
         Performs speech-to-text conversion on an audio file.
 
@@ -140,4 +177,8 @@ class SpeechToTextConverter:
         """
         mp3_path = self._convert_to_mp3(file_path)
         audio_path = self._split_audio(mp3_path)
-        return self._speech_to_text(audio_path)
+        transcript = self._speech_to_text(audio_path)
+        audio_minutes = self._calculate_audio_minutes(mp3_path)
+        recorder = UsageRecorder()
+        recorder.audio_minutes = audio_minutes
+        return transcript

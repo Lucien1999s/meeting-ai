@@ -16,6 +16,7 @@ In order to realize the automation of meeting records, this project will hand ov
 ├── src
 │   ├── auto_summarize.py
 │   └── speech_to_text.py
+│   └── record_usage.py
 └── test
 ```
 
