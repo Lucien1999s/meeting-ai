@@ -26,9 +26,15 @@ Example:
 import os
 import time
 import openai
+import tiktoken
 from typing import List
-from src.record_usage import UsageRecorder
+from typing import Tuple
 from dotenv import load_dotenv
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+from pygtrans import Translate
+
 
 load_dotenv()
 
@@ -48,7 +54,7 @@ class ReportGenerator:
         This method sets the model to "gpt-3.5-turbo" and sets the OpenAI API key using
         the environment variable "OPENAI_API_KEY".
         """
-        self.model = "gpt-3.5-turbo"
+        self.model = "gpt-3.5-turbo-16k"
         self.prompt_tokens = 0
         self.completion_tokens = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -78,12 +84,16 @@ class ReportGenerator:
         )
         prompt_tokens = response["usage"]["prompt_tokens"]
         completion_tokens = response["usage"]["completion_tokens"]
+        res = response["choices"][0]["message"]["content"]
         self.prompt_tokens += prompt_tokens
         self.completion_tokens += completion_tokens
-        return response["choices"][0]["message"]["content"]
+        print("Prompt:",prompt_tokens)
+        print("Completion:",completion_tokens)
+        print(res)
+        return res
 
     @staticmethod
-    def _chunk_transcript(transcript: str, chunk_size: int = 1800) -> list:
+    def _chunk_transcript(transcript: str, chunk_size: int = 4000) -> list:
         """Splits the transcript into chunks of a specified size.
 
         Args:
@@ -110,8 +120,49 @@ class ReportGenerator:
         if current_chunk:
             transcript_chunks.append(current_chunk)
 
+        print("How many:",len(transcript_chunks))
+        # print(transcript_chunks)
         print("Successfully chunked transcripts.")
         return transcript_chunks
+    
+    @staticmethod
+    def _sumy(chinese_texts, num_sentences=25):
+        """Generates summaries for a list of Chinese texts using Sumy library.
+
+        Args:
+            chinese_texts (list[str]): A list of Chinese texts to be summarized.
+            num_sentences (int, optional): The number of sentences to include in the summary. Defaults to 3.
+
+        Returns:
+            list[str]: A list of summaries corresponding to the input Chinese texts.
+
+        Raises:
+            ValueError: If the input `chinese_texts` is not a list.
+
+        Notes:
+            - This method uses the Sumy library for text summarization.
+            - Each Chinese text in the input list will be translated to English, summarized in English using Sumy,
+            and then translated back to Chinese.
+        """
+        if not isinstance(chinese_texts, list):
+            raise ValueError("Input 'chinese_texts' must be a list of strings.")
+
+        translator = Translate()
+        summaries = []
+
+        for chinese_text in chinese_texts:
+            english_text = translator.translate(chinese_text, target='en').translatedText
+            parser = PlaintextParser.from_string(english_text, Tokenizer("english"))
+            summarizer = LsaSummarizer()
+            summary = summarizer(parser.document, num_sentences)
+
+            summary_text = " ".join(str(sentence) for sentence in summary)
+            translated_summary = translator.translate(summary_text, target='zh-TW').translatedText
+            summaries.append(translated_summary)
+        print(summaries)
+
+        return summaries
+
 
     def _summarize_transcript_chunks(self, transcript_chunks: List[str]) -> List[str]:
         """Summarizes the transcript chunks and generates aggregated summaries.
@@ -130,12 +181,14 @@ class ReportGenerator:
 
         for i in range(len(transcript_chunks)):
             content = """
-            這是一份會議記錄逐字稿，幫我記錄討論的重點內容成300字重點摘要敘述：
+            -這是一份會議記錄逐字稿
+            -我要你將逐字稿中的內容轉換成1000個中文字的不分段長篇敘述
     
-            [會議記錄]
-            {transcript_chunks}
+            [會議記錄逐字稿]
+            「{transcript_chunks}」
 
-            詳細記錄所有該會議記錄中提到的所有資訊成重點內容300字摘要敘述
+            -我要你「詳細記錄所有」該會議記錄中提到的所有資訊
+            1000個中文字的不分段長篇敘述：
             """
             prompt = content.format(transcript_chunks=transcript_chunks[i])
             system_prompt = "你是一個專門統整會議記錄摘要的專家"
@@ -144,7 +197,7 @@ class ReportGenerator:
                     prompt=prompt,
                     system_prompt=system_prompt,
                     temperature=0.3,
-                    max_tokens=600,
+                    max_tokens=2200,
                 )
                 aggregated_strings.append(res)
             except openai.error.RateLimitError:
@@ -158,6 +211,40 @@ class ReportGenerator:
 
         print("Successfully summarize every chunks.")
         return aggregated_strings
+    
+    def _count_tokens(self,content, model="gpt-3.5-turbo-0301"):
+        """Returns the number of tokens used by a list of messages."""
+        messages = [
+            {
+                "role": "user",
+                "content": content,
+            },
+        ]
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        if model == "gpt-3.5-turbo":
+            return self._count_tokens(messages, model="gpt-3.5-turbo-0301")
+        elif model == "gpt-4":
+            return self._count_tokens(messages, model="gpt-4-0314")
+        elif model == "gpt-3.5-turbo-0301":
+            tokens_per_message = 4  
+            tokens_per_name = -1  
+        elif model == "gpt-4-0314":
+            tokens_per_message = 3
+            tokens_per_name = 1
+        else:
+            raise NotImplementedError("error")
+        num_tokens = 0
+        for message in messages:
+            num_tokens += tokens_per_message
+            for key, value in message.items():
+                num_tokens += len(encoding.encode(value))
+                if key == "name":
+                    num_tokens += tokens_per_name
+        num_tokens += 3  
+        return num_tokens
 
     def _generate_highlight(self, aggregated_strings: str) -> str:
         """Generates a professional meeting content description by reorganizing the aggregated strings.
@@ -169,23 +256,22 @@ class ReportGenerator:
             str: Professional meeting content description.
         """
         content = """
-        -以下是一個會議紀錄摘要列表，他們是從會議記錄中分段摘要出來的結果
-        -你看完整個會議摘要後，要為這些會議記錄摘要列表重新統整起來寫一個850字的專業會議重點敘述
+        -以下是一個會議紀錄摘要，是從會議記錄中分段摘要出來的結果
+        -我要你先看完以下會議紀錄摘要
 
-        會議紀錄摘要列表：
+        會議紀錄摘要：
         [
         {aggregated_strings}
         ]
-        -在你產的專業文章中，必須避免使用像「在第一個摘要中」這樣的描述方式，而應該使用「在此會議中」等更通用的表述
-        -必須要用句號結尾
-        -必須邏輯清楚的來寫整個會議紀錄的所有討論內容
-        -格式上，應以專業報告形式，分成三段來寫：1.敘述討論內容2.總結重點3.適當結論，這樣才能提升閱讀性
-        請遵守上述要求，以下請產生850字專業分段會議重點紀錄文：
+        -你要你根據這份摘要重寫一份會議紀錄重點整理文章，並且分成三到四個段落書寫，使可讀性更高
+        -我要你使用「在此會議中」的表述角度來書寫
+        -敘述文內容邏輯必須清楚、語句和段落必須通順流暢且避免頻繁重複使用同一助詞
+        以下是你新產生的「會議紀錄重點整理文章」內容：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個專門為會議記錄進行逐項整理並摘要的專家"
+        system_prompt = "你是一個專門為會議記錄摘要進行排版優化和內容整理的專家"
         highlight = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1700
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2500
         )
         print("Successfully generate highlight.")
         return highlight
@@ -200,29 +286,21 @@ class ReportGenerator:
             str: Meeting todos with event names.
         """
         content = """
-        -以下是一個會議紀錄摘要列表，他們是從會議記錄中分段摘要出來的結果
-        -你看完整個會議摘要後，從這些會議記錄摘要列表當中找出所有待辦事項
-        -必須根據我要的格式羅列出待辦事項的事件名稱
-        -必須細分所有的待辦事項，越細越好，越多越好
+        -以下是一個會議紀錄摘要，他們是從會議記錄中摘要出來的結果
+        -待辦事項：意思是會議紀錄中提到會議後要去做的事情
+        -我要你列出會議紀錄中提到的待辦事項
 
-        會議紀錄摘要列表：
+        會議紀錄摘要：
         [
         {aggregated_strings}
         ]
-        你的回應格式：
-        -----
-        1.
-        標題：
-        2.
-        標題：
-        ...
-        -----
-        必須要按照格式為每一項標記數字,且有標題和說明
-        待辦事項的每項必須都是很細的單個分工項目
-        你產生的逐項會議待辦事項：
+        你認為以上有提到哪些接下來要去做的待辦事項？
+        -我要你用數字條列待辦事項
+        -我要你記住「要去做的事情」才是待辦事項
+        以下是你產生的數字條列會議待辦事項：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個專門從會議記錄中找出待辦事項並分析整理的專家"
+        system_prompt = "你是一個專門從會議記錄中找出待辦事項並給予適當標題的專家"
         todo_list = self._call_openai(
             prompt=prompt, system_prompt=system_prompt, temperature=0.3, max_tokens=700
         )
@@ -241,34 +319,38 @@ class ReportGenerator:
         """
         content = """
         -以下是所有會議紀錄的待辦事項
-        -請你看完所有待辦事項後，針對每個待辦事項給予建議的未來行動規劃
-        -未來行動規劃就是如果要完成該項任務，可以從哪裡開始著手
+        -我要你針對每個待辦事項給予智能建議
+        -智能建議是指如果要完成該項任務，可以從哪裡開始著手
         待辦事項：
         [
         {todo_list}
         ]
-
-        你的格式應該如下：
-        -----
-        1.
-        標題：
-        建議：
-        2.
-        標題：
-        建議：
-        ...
-        -----
-        必須要按照格式為每一項標記1234...,且有標題和建議
-        且建議不能包含該待辦事項的說明欄位的內容，必須要是針對該待辦事項的推薦行動規劃，越新奇且有用的建議越好
-        你產生的逐項待辦事項行動規劃表：
+        -我要你用數字條列的方式給我[待辦事項和智能建議]，其餘的不要多說
+        -必須要是針對該待辦事項的智能建議，我要新奇和有用的智能建議
+        以下是你產生的逐項待辦事項智能建議之內容：
         """
         prompt = content.format(todo_list=todo_list)
         system_prompt = "你是一個針對會議紀錄待辦事項提出好建議的專家"
         recommandations = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.9, max_tokens=1500
+            prompt=prompt, system_prompt=system_prompt, temperature=0.9, max_tokens=3000
         )
         print("Successfully generate recommandations.")
         return recommandations
+    
+    def get_report_usage(self) -> Tuple[int, int, int, float]:
+        """Calculate the report usage.
+
+        Returns:
+            Tuple[int, int, int, float]: A tuple containing the prompt tokens, completion tokens,
+            total tokens, and cost.
+
+        """
+        prompt_tokens = self.prompt_tokens
+        completion_tokens = self.completion_tokens
+        total_tokens = prompt_tokens + completion_tokens
+        cost = (total_tokens / 1000) * 0.002
+
+        return prompt_tokens, completion_tokens, total_tokens, cost
 
     def generate_report(
         self, meeting_transcript: str, file_path: str, meeting_name: str
@@ -284,9 +366,10 @@ class ReportGenerator:
             str: The generated meeting report.
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
-        aggregated_strings = self._summarize_transcript_chunks(transcript_chunks)
+        # aggregated_strings = self._summarize_transcript_chunks(transcript_chunks)
+        aggregated_strings = self._sumy(transcript_chunks)
         highlight = self._generate_highlight(aggregated_strings)
-        todo_list = self._generate_todo(aggregated_strings)
+        todo_list = self._generate_todo(highlight)
         recommendations = self._generate_recommendations(todo_list)
 
         report = (
@@ -298,7 +381,6 @@ class ReportGenerator:
             + "待辦事項和智能建議:\n"
             + recommendations
         )
-
         report_dir = os.path.dirname(file_path)
         report_file_name = os.path.basename(file_path).replace(
             os.path.splitext(file_path)[1], "_report.txt"
@@ -307,13 +389,9 @@ class ReportGenerator:
 
         with open(report_file_path, "w") as report_file:
             report_file.write(report)
-
-        prompt_tokens = self.prompt_tokens
-        completion_tokens = self.completion_tokens
-
-        recorder = UsageRecorder()
-
-        recorder.prompt_tokens = prompt_tokens
-        recorder.completion_tokens = completion_tokens
-
+        # report= ""
+        # print(aggregated_strings)
         return report
+
+if __name__ == "__main__":
+    r = ReportGenerator()

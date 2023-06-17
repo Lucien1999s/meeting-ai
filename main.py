@@ -15,7 +15,6 @@ Returns:
 """
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import ReportGenerator
-from src.record_usage import UsageRecorder
 import json
 import os
 
@@ -46,6 +45,8 @@ def main():
     if not os.path.exists(file_url):
         print("File not found:", file_url)
         return
+    
+    audio_minutes, transcript_cost, prompt_tokens, completion_tokens, total_tokens, report_cost = (0.0, 0.0, 0, 0, 0, 0.0)
 
     transcript_file = os.path.join(
         os.path.dirname(file_url),
@@ -59,6 +60,7 @@ def main():
     else:
         converter = SpeechToTextConverter()
         transcript = converter.speech_to_text_go(file_url)
+        audio_minutes,transcript_cost = converter.get_transcript_usage()
 
     report_file = os.path.join(
         os.path.dirname(file_url),
@@ -72,16 +74,8 @@ def main():
     else:
         report_generator = ReportGenerator()
         report = report_generator.generate_report(transcript, file_url, meeting_name)
-
-    usage_recoder = UsageRecorder()
-    audio_minutes, transcript_cost = usage_recoder.get_transcript_usage()
-    (
-        prompt_tokens,
-        completion_tokens,
-        total_tokens,
-        report_cost,
-    ) = usage_recoder.get_report_usage()
-
+        prompt_tokens, completion_tokens,total_tokens,report_cost = report_generator.get_report_usage()
+    
     usage_info = (
         "\n轉音檔分鐘數： "
         + str(audio_minutes)
@@ -100,7 +94,7 @@ def main():
         + " USD"
     )
 
-    print("逐字稿\n\n", transcript)
+    # print("逐字稿\n\n", transcript)
     print("AI報告\n\n", report)
     print("使用量和費用\n\n", usage_info)
 

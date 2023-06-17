@@ -18,8 +18,8 @@ Example:
 import os
 import math
 from pydub import AudioSegment
+from typing import Tuple
 import openai
-from src.record_usage import UsageRecorder
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -43,6 +43,7 @@ class SpeechToTextConverter:
         The constructor sets the default model to "whisper-1" and loads the OpenAI API key from the environment.
         """
         self.model = "whisper-1"
+        self.audio_minutes = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
     def _convert_to_mp3(self, file_path: str) -> str:
@@ -142,7 +143,7 @@ class SpeechToTextConverter:
         print("Complete speech to text:", extracted_text)
         return extracted_text
 
-    def _calculate_audio_minutes(audio_path: str) -> int:
+    def _calculate_audio_minutes(self,audio_path: str) -> int:
         """Calculate the duration of an audio file in minutes.
 
         Args:
@@ -163,6 +164,18 @@ class SpeechToTextConverter:
         duration_seconds = len(audio) / 1000
         duration_minutes = math.ceil(duration_seconds / 60)
         return duration_minutes
+    
+    def get_transcript_usage(self) -> Tuple[float, float]:
+        """Calculate the transcript usage.
+
+        Returns:
+            Tuple[float, float]: A tuple containing the audio minutes and the total cost.
+
+        """
+        audio_minutes = self.audio_minutes
+        cost = audio_minutes * 0.006
+
+        return audio_minutes, cost
 
     def speech_to_text_go(self, file_path: str) -> str:
         """
@@ -178,7 +191,5 @@ class SpeechToTextConverter:
         mp3_path = self._convert_to_mp3(file_path)
         audio_path = self._split_audio(mp3_path)
         transcript = self._speech_to_text(audio_path)
-        audio_minutes = self._calculate_audio_minutes(mp3_path)
-        recorder = UsageRecorder()
-        recorder.audio_minutes = audio_minutes
+        self.audio_minutes = self._calculate_audio_minutes(mp3_path)
         return transcript
