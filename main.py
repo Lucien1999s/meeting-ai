@@ -13,10 +13,10 @@ Args:
 Returns:
     None
 """
+import os
+import json
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import ReportGenerator
-import json
-import os
 
 
 def main():
@@ -36,7 +36,7 @@ def main():
         None
     """
     config_path = "config.json"
-    with open(config_path) as config_file:
+    with open(config_path, encoding="utf-8") as config_file:
         config = json.load(config_file)
 
     file_url = config["file_url"]
@@ -45,8 +45,15 @@ def main():
     if not os.path.exists(file_url):
         print("File not found:", file_url)
         return
-    
-    audio_minutes, transcript_cost, prompt_tokens, completion_tokens, total_tokens, report_cost = (0.0, 0.0, 0, 0, 0, 0.0)
+
+    (
+        audio_minutes,
+        transcript_cost,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        report_cost,
+    ) = (0.0, 0.0, 0, 0, 0, 0.0)
 
     transcript_file = os.path.join(
         os.path.dirname(file_url),
@@ -55,12 +62,12 @@ def main():
         ),
     )
     if os.path.exists(transcript_file):
-        with open(transcript_file, "r") as transcript_file:
+        with open(transcript_file, "r", encoding="utf-8") as transcript_file:
             transcript = transcript_file.read()
     else:
         converter = SpeechToTextConverter()
         transcript = converter.speech_to_text_go(file_url)
-        audio_minutes,transcript_cost = converter.get_transcript_usage()
+        audio_minutes, transcript_cost = converter.get_transcript_usage()
 
     report_file = os.path.join(
         os.path.dirname(file_url),
@@ -69,13 +76,18 @@ def main():
         ),
     )
     if os.path.exists(report_file):
-        with open(report_file, "r") as report_file:
+        with open(report_file, "r", encoding="utf-8") as report_file:
             report = report_file.read()
     else:
         report_generator = ReportGenerator()
         report = report_generator.generate_report(transcript, file_url, meeting_name)
-        prompt_tokens, completion_tokens,total_tokens,report_cost = report_generator.get_report_usage()
-    
+        (
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            report_cost,
+        ) = report_generator.get_report_usage()
+
     usage_info = (
         "\n轉音檔分鐘數： "
         + str(audio_minutes)
@@ -94,8 +106,7 @@ def main():
         + " USD"
     )
 
-    # print("逐字稿\n\n", transcript)
-    print("AI報告\n\n", report)
+    print(report)
     print("使用量和費用\n\n", usage_info)
 
 

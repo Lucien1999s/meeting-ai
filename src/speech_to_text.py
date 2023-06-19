@@ -1,5 +1,6 @@
 """
-This module provides a SpeechToTextConverter class for converting speech to text using the OpenAI API.
+This module provides a SpeechToTextConverter class for converting 
+speech to text using the OpenAI API.
 
 It includes the following functionalities:
 - Conversion of audio files to MP3 format
@@ -17,8 +18,8 @@ Example:
 """
 import os
 import math
-from pydub import AudioSegment
 from typing import Tuple
+from pydub import AudioSegment
 import openai
 from dotenv import load_dotenv
 
@@ -40,7 +41,8 @@ class SpeechToTextConverter:
         """
         Initializes a new instance of the SpeechToTextConverter class.
 
-        The constructor sets the default model to "whisper-1" and loads the OpenAI API key from the environment.
+        The constructor sets the default model to "whisper-1" and loads 
+        the OpenAI API key from the environment.
         """
         self.model = "whisper-1"
         self.audio_minutes = 0
@@ -71,8 +73,10 @@ class SpeechToTextConverter:
                 file_path = mp3_path
         except FileNotFoundError:
             print("File not found:", file_path)
-        except Exception as e:
-            print("An error occurred while converting to MP3:", str(e))
+        except OSError as error:
+            print("An error occurred while converting to MP3:", str(error))
+        except ValueError as error:
+            print("An error occurred while converting to MP3:", str(error))
 
         print("Successfully converted to MP3")
         return file_path
@@ -136,14 +140,14 @@ class SpeechToTextConverter:
                     transcription = transcript["text"].replace(" ", "\n")
                     transcriptions.append(transcription)
 
-        with open(transcriptions_path, "w") as f:
-            f.write("\n".join(transcriptions))
+        with open(transcriptions_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(transcriptions))
 
         extracted_text = "\n".join(transcriptions)
         print("Complete speech to text:", extracted_text)
         return extracted_text
 
-    def _calculate_audio_minutes(self,audio_path: str) -> int:
+    def _calculate_audio_minutes(self, audio_path: str) -> int:
         """Calculate the duration of an audio file in minutes.
 
         Args:
@@ -158,13 +162,13 @@ class SpeechToTextConverter:
         """
         try:
             audio = AudioSegment.from_file(audio_path)
-        except FileNotFoundError:
-            raise FileNotFoundError("Can't found audio file.")
+        except FileNotFoundError as error:
+            raise FileNotFoundError("Can't found audio file.") from error
 
         duration_seconds = len(audio) / 1000
         duration_minutes = math.ceil(duration_seconds / 60)
         return duration_minutes
-    
+
     def get_transcript_usage(self) -> Tuple[float, float]:
         """Calculate the transcript usage.
 
