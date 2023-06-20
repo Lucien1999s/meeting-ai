@@ -6,8 +6,8 @@ It includes the following functionalities:
 - Chunking transcripts into smaller segments
 - Summarizing Chinese texts using the Sumy library
 - Generating professional meeting content descriptions
-- Extracting meeting todos from aggregated strings
-- Generating recommendations for each todo item
+- Extracting meeting progress from aggregated strings
+- Generating recommendations for each uncomplete task
 
 Usage:
 1. Initialize the ReportGenerator object.
@@ -42,11 +42,10 @@ class ReportGenerator:
     """
 
     def __init__(self):
-        """
-        Initializes the object.
+        """Initializes a ReportGenerator object.
 
-        This method sets the model to "gpt-3.5-turbo" and sets the OpenAI API key using
-        the environment variable "OPENAI_API_KEY".
+        Sets the default values for the model, prompt tokens, and completion tokens.
+        The OpenAI API key is retrieved from the environment variable OPENAI_API_KEY.
         """
         self.model = "gpt-3.5-turbo-16k"
         self.prompt_tokens = 0
@@ -125,7 +124,7 @@ class ReportGenerator:
 
         Args:
             chinese_texts (list[str]): A list of Chinese texts to be summarized.
-            num_sentences (int, optional): The number of sentences to include in the summary. 
+            num_sentences (int, optional): The number of sentences to include in the summary.
                 Defaults to 3.
 
         Returns:
@@ -133,11 +132,6 @@ class ReportGenerator:
 
         Raises:
             ValueError: If the input `chinese_texts` is not a list.
-
-        Notes:
-            - This method uses the Sumy library for text summarization.
-            - Each Chinese text in the input list will be translated to English,
-                summarized in English using Sumy, and then translated back to Chinese.
         """
         if not isinstance(chinese_texts, list):
             raise ValueError("Input 'chinese_texts' must be a list of strings.")
@@ -164,92 +158,97 @@ class ReportGenerator:
 
     def _generate_highlight(self, aggregated_strings: str) -> str:
         """
-        Generates a professional meeting content description
-        by reorganizing the aggregated strings.
+        Generates a highlight based on the aggregated strings.
 
         Args:
-            aggregated_strings (str): Aggregated strings of meeting summary.
+            aggregated_strings (str): The aggregated strings from the meeting records.
 
         Returns:
-            str: Professional meeting content description.
+            str: The generated highlight as a string.
         """
-
         content = """
-        -以下是一個會議紀錄摘要，是從會議記錄中分段摘要出來的結果
-        -我要你先看完以下會議紀錄摘要
-        會議紀錄摘要：
-        [
-        {aggregated_strings}
-        ]
-        -你要你根據這份摘要重寫一份會議紀錄重點整理文章，並且分成三到四個段落書寫，使可讀性更高
-        -我要你使用「在此會議中」的表述角度來書寫
-        -敘述文內容邏輯必須清楚、語句和段落必須通順流暢且避免頻繁重複使用同一助詞
-        以下是你新產生的「會議紀錄重點整理文章」內容：
+        我要你先閱讀以下會議紀錄：
+        「{aggregated_strings}」
+        你的任務是根據此公司的會議紀錄提供一段概覽
+        你的格式應該如下：
+        [一段概覽]
+        我要你遵照以上格式要求來提供一段概覽
+        你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個專門為會議記錄摘要進行排版優化和內容整理的專家"
+        system_prompt = "你是一個會議紀錄摘要師，是專門寫出邏輯清晰易讀性強的概覽的摘要師"
         highlight = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2500
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1000
         )
         print("Successfully generate highlight.")
         return highlight
 
-    def _generate_todo(self, aggregated_strings: str) -> str:
-        """Generates a list of meeting todos by extracting them from the aggregated strings.
+    def _generate_progress(self, aggregated_strings: str) -> str:
+        """
+        Generates a progress report based on the aggregated strings.
 
         Args:
-            aggregated_strings (str): Aggregated strings of meeting summary.
+            aggregated_strings (str): The aggregated strings from the meeting records.
 
         Returns:
-            str: Meeting todos with event names.
+            str: The generated progress report as a string.
         """
         content = """
-        -以下是一個會議紀錄摘要，他們是從會議記錄中摘要出來的結果
-        -待辦事項：意思是會議紀錄中提到會議後要去做的事情
-        -我要你列出會議紀錄中提到的待辦事項
-        會議紀錄摘要：
-        [
-        {aggregated_strings}
-        ]
-        你認為以上有提到哪些接下來要去做的待辦事項？
-        -我要你用數字條列待辦事項
-        -我要你記住「要去做的事情」才是待辦事項
-        以下是你產生的數字條列會議待辦事項：
+        我要你先閱讀以下會議紀錄：
+        「{aggregated_strings}」
+        你的任務是從這個公司的會議紀錄中，列出有完成的事情或專案和待完成的事情或專案，並提供相應的事件敘述
+        你列出的每個事項都要有明確的敘述
+        你的格式應該如下：
+
+        完成事項：
+        - [某完成事件的敘述]
+        - [某完成事件的敘述]
+        ...
+
+        待完成事項：
+        - [某待完成事件的敘述]
+        - [某待完成事件的敘述]
+        ...
+        完成的事項不應該和待完成事項有重疊的事項
+        事項與事項之間不支持有過於類似的內容，若有類似的內容請合併為同一項事項
+        我要你遵照以上格式要求條列提供完成事項和待完成事項
+        你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個專門從會議記錄中找出待辦事項並給予適當標題的專家"
+        system_prompt = "你是一個會議紀錄分析師，專門找到會議紀錄中已經完成的事項和待完成的事項"
         todo_list = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.3, max_tokens=700
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=700
         )
-        print("Successfully generate todo list.")
+        print("Successfully generate progress.")
         time.sleep(10)
         return todo_list
 
-    def _generate_recommendations(self, todo_list: str) -> str:
-        """Generates recommendations for each item in the todo list.
+    def _generate_recommendations(self, progress: str) -> str:
+        """
+        Generates intelligent recommendations for each pending task based on the progress.
 
         Args:
-            todo_list (str): List of meeting todos.
+            progress (str): The progress report containing completed and pending tasks.
 
         Returns:
-            str: Recommendations for each todo item.
+            str: The generated recommendations for each pending task as a string.
         """
         content = """
-        -以下是所有會議紀錄的待辦事項
-        -我要你針對每個待辦事項給予智能建議
-        -智能建議是指如果要完成該項任務，可以從哪裡開始著手
-        待辦事項：
+        以下是所有會議紀錄的完成事項和待完成事項
+        我要你針對每個待完成事項給予智能建議
+        智能建議是指如果要完成該項任務，可以從哪裡開始著手
+        完成事項和待完成事項：
         [
-        {todo_list}
+        {progress}
         ]
-        -我要你用數字條列的方式給我[待辦事項和智能建議]，其餘的不要多說
-        -必須要是針對該待辦事項的智能建議，我要新奇和有用的智能建議
-        以下是你產生的逐項待辦事項智能建議之內容：
+        我要你用數字條列的方式給我[待完成事項和智能建議]，其餘的不要多說
+        必須要是針對該待完成事項的智能建議，我要新奇和有用的智能建議
+        以下是你產生的逐項待完成事項智能建議之內容：
         """
-        prompt = content.format(todo_list=todo_list)
-        system_prompt = "你是一個針對會議紀錄待辦事項提出好建議的專家"
+        prompt = content.format(progress=progress)
+        system_prompt = "你是一個針對會議紀錄待完成事項提出好建議的專家"
         recommandations = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.9, max_tokens=3000
+            prompt=prompt, system_prompt=system_prompt, temperature=0.9, max_tokens=2500
         )
         print("Successfully generate recommandations.")
         return recommandations
@@ -260,7 +259,6 @@ class ReportGenerator:
         Returns:
             Tuple[int, int, int, float]: A tuple containing the prompt tokens, completion tokens,
             total tokens, and cost.
-
         """
         prompt_tokens = self.prompt_tokens
         completion_tokens = self.completion_tokens
@@ -285,16 +283,19 @@ class ReportGenerator:
         transcript_chunks = self._chunk_transcript(meeting_transcript)
         aggregated_strings = self._sumy(transcript_chunks)
         highlight = self._generate_highlight(aggregated_strings)
-        todo_list = self._generate_todo(highlight)
-        recommendations = self._generate_recommendations(todo_list)
+        progress = self._generate_progress(aggregated_strings)
+        recommendations = self._generate_recommendations(progress)
 
         report = (
             meeting_name
             + "\n\n"
-            + "會議紀錄摘要:\n"
+            + "會議紀錄概要:\n"
             + highlight
             + "\n\n"
-            + "待辦事項和智能建議:\n"
+            + "進度：\n"
+            + progress
+            + "\n\n"
+            + "智能建議:\n"
             + recommendations
         )
         report_dir = os.path.dirname(file_path)
@@ -305,7 +306,5 @@ class ReportGenerator:
 
         with open(report_file_path, "w", encoding="utf-8") as report_file:
             report_file.write(report)
-        
-        print(highlight)
 
         return report
