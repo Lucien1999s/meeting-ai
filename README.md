@@ -11,12 +11,12 @@ In order to realize the automation of meeting records, this project will hand ov
 .
 ├── README.md
 ├── config.json
+├── .env.example
 ├── main.py
 ├── requirements.txt
 ├── src
 │   ├── auto_summarize.py
 │   └── speech_to_text.py
-│   └── record_usage.py
 └── test
 ```
 
@@ -25,7 +25,7 @@ In order to realize the automation of meeting records, this project will hand ov
 ### 1. Clone project
 
 ```bash
-git clone ssh://git@biglab.buygta.today:8931/bigdata/ai-meeting-project.git
+git clone git@github.com:Lucien1999s/ai-meeting-project.git
 ```
 
 ### 2. Set up .env with .env.example
@@ -40,7 +40,7 @@ git clone ssh://git@biglab.buygta.today:8931/bigdata/ai-meeting-project.git
 pip install -r requirements.txt
 ```
 
-### 5. Launch it (Not yet under development)
+### 5. Launch it
 
 ```bash
 python main.py
@@ -48,18 +48,18 @@ python main.py
 
 ## Features
 
-### 1. Speech to text:
+### 1. Speech to text (generate transcript txt file):
 
 Input audio files (mp3, m4a, wav) will be automatically converted to verbatim.
 
-### 2. Generate focused reports
+### 2. Generate highlight of meeting minutes
 
-Analyze and generate key points of meeting minutes based on verbatim transcripts of meeting minutes.
+Analyze and generate highlight of meeting minutes based on verbatim transcripts of meeting minutes.
 
-### 3. Generate todo list
+### 3. Generate progress list 
 
-Analyze and generate meeting to-do items from verbatim transcripts of meeting minutes.
+Generate a progress list by analyzing and categorizing completed and pending tasks from meeting transcripts.
 
 ### 4. Give smart suggestions
 
-Give smart suggestions based on to-do items.
+Give smart suggestions based on pending tasks.
