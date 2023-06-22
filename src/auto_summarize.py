@@ -1,5 +1,20 @@
+"""
+This module provides a ReportGenerator class for generating meeting reports using the OpenAI API.
 
+It includes the following functionalities:
+- Generating summaries based on meeting transcripts
+- Generating follow-ups based on meeting transcripts
+- Saving reports to a file
 
+Usage:
+1. Initialize the ReportGenerator object.
+2. Call the `generate_report` method to generate a meeting report.
+
+Example:
+    generator = ReportGenerator()
+    report = generator.generate_report(meeting_transcript, file_path, meeting_name)
+    print(report)
+"""
 import os
 import time
 import logging
@@ -15,6 +30,7 @@ from pygtrans import Translate
 
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 
 class ReportGenerator:
@@ -39,13 +55,26 @@ class ReportGenerator:
     def _call_openai(
         self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
     ) -> str:
-        """"""
-        if self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens > 4000:
-            model = "gpt-3.5-turbo-16k"
-        else:
-            model = "gpt-3.5-turbo"
-        retries = 0
-        while retries < 3:
+        """Calls the OpenAI API for chat completion and returns the response.
+
+        Args:
+            prompt (str): The user's prompt for chat completion.
+            system_prompt (str): The system's prompt for chat completion.
+            temperature (float): Controls the randomness of the response.
+            max_tokens (int): The maximum number of tokens in the generated response.
+
+        Returns:
+            str: The generated chat response.
+
+        Raises:
+            OpenAIError: If there is an error while calling the OpenAI API.
+        """
+        token_count = (
+            self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens
+        )
+        model = "gpt-3.5-turbo-16k" if token_count > 4000 else "gpt-3.5-turbo"
+
+        for retry in range(3):
             try:
                 response = openai.ChatCompletion.create(
                     model=model,
@@ -58,26 +87,29 @@ class ReportGenerator:
                 )
                 prompt_tokens = response["usage"]["prompt_tokens"]
                 completion_tokens = response["usage"]["completion_tokens"]
-                cost = self._count_cost(model,prompt_tokens,completion_tokens)
+                cost = self._count_cost(model, prompt_tokens, completion_tokens)
                 res = response["choices"][0]["message"]["content"]
                 self.prompt_tokens += prompt_tokens
                 self.completion_tokens += completion_tokens
                 self.total_cost += cost
-                print("Use model:", model)
-                print("Prompt:", prompt_tokens)
-                print("Completion:", completion_tokens)
-                print("Cost: ",cost," USD")
-                print(res)
+
+                logging.info("Use model: %s", model)
+                logging.info("Prompt tokens: %f", prompt_tokens)
+                logging.info("Completion tokens: %f", completion_tokens)
+                logging.info("Cost: %f USD", cost)
+                logging.info(res)
+
                 return res
-            except OpenAIError as e:
-                print("Error:", e)
-                retries += 1
-                if retries == 3:
-                    print("Failed to generate a response after 3 attempts. Aborting.")
+            except OpenAIError as error:
+                logging.error("Error: %s", error)
+                if retry == 2:
+                    logging.error(
+                        "Failed to generate a response after 3 attempts. Aborting."
+                    )
                     raise
-                else:
-                    print(f"Retrying ({retries}/3) after 10 seconds...")
-                    time.sleep(10)
+                logging.warning("Retrying (%d/3) after 10 seconds...", retry + 1)
+                time.sleep(10)
+        return ""
 
     @staticmethod
     def _chunk_transcript(transcript: str, chunk_size: int = 4000) -> list:
@@ -107,18 +139,138 @@ class ReportGenerator:
         if current_chunk:
             transcript_chunks.append(current_chunk)
 
-        print("Split to", len(transcript_chunks), " chunks.")
-        print("Successfully chunked transcripts.")
+        logging.info("Split into %d chunks.", len(transcript_chunks))
+        logging.info("Successfully chunked transcripts.")
         return transcript_chunks
-    
-    @staticmethod
-    def _count_cost(model: str,prompt_tokens: float,completion_tokens: float) -> float:
-        if model == "gpt-3.5-turbo":
-            return (prompt_tokens/1000) * 0.0015 + (completion_tokens/1000) * 0.002
-        else:
-            return (prompt_tokens/1000) * 0.003 + (completion_tokens/1000) * 0.004
 
-    def _count_tokens(self,content: str, model="gpt-3.5-turbo-0301") -> int:
+    @staticmethod
+    def _sumy_transcript(chinese_texts, num_sentences=25):
+        """Generates summaries for a list of transcripts texts using the Sumy library.
+
+        Args:
+            chinese_texts (list[str]): A list of Chinese texts to be summarized.
+            num_sentences (int, optional): The number of sentences to include in the summary.
+                Defaults to 3.
+
+        Returns:
+            list[str]: A list of aggregated_strings corresponding to the input Chinese texts.
+
+        Raises:
+            ValueError: If the input `chinese_texts` is not a list.
+        """
+        if not isinstance(chinese_texts, list):
+            raise ValueError("Input 'chinese_texts' must be a list of strings.")
+
+        translator = Translate()
+        aggregated_strings = []
+
+        for chinese_text in chinese_texts:
+            english_text = translator.translate(
+                chinese_text, target="en"
+            ).translatedText
+            parser = PlaintextParser.from_string(english_text, Tokenizer("english"))
+            summarizer = LsaSummarizer()
+            summary = summarizer(parser.document, num_sentences)
+
+            summary_text = " ".join(str(sentence) for sentence in summary)
+            translated_summary = translator.translate(
+                summary_text, target="zh-TW"
+            ).translatedText
+            aggregated_strings.append(translated_summary)
+        logging.info("Aggregated: %s", aggregated_strings)
+
+        return aggregated_strings
+
+    def _generate_summary(self, aggregated_strings: str) -> str:
+        """
+        Generates a summary based on the aggregated strings.
+
+        Args:
+            aggregated_strings (str): The aggregated strings from the meeting records.
+
+        Returns:
+            str: The generated summary as a string.
+        """
+        content = """
+        會議紀錄：
+        「{aggregated_strings}」
+        你要從以上會議紀錄摘要出重點討論的事項之重點說明
+        你的回應格式：
+
+        1.[事件標題]：
+        - [事件重點說明]
+        
+        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
+        你的回應：
+        """
+        prompt = content.format(aggregated_strings=aggregated_strings)
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
+        summary = self._call_openai(
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
+        )
+        logging.info("Successfully generate summary.")
+        return summary
+
+    def _generate_follow_ups(self, aggregated_strings: str) -> str:
+        """
+        Generates follow ups based on the aggregated strings.
+
+        Args:
+            aggregated_strings (str): The aggregated strings from the meeting records.
+
+        Returns:
+            str: The generated follow ups as a string.
+        """
+        content = """
+        會議紀錄：
+        「{aggregated_strings}」
+        你要根據以上會議紀錄來摘要出會議後要做的重點事項
+        你的回應格式：
+
+        - [要做的重點事項]
+        
+        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
+        你的回應：
+        """
+        prompt = content.format(aggregated_strings=aggregated_strings)
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中提到會議後需要做的重點事項"
+        follow_ups = self._call_openai(
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
+        )
+        logging.info("Successfully generate follow ups.")
+        return follow_ups
+
+    @staticmethod
+    def _process_string(input_str: str) -> str:
+        """
+        Processes the input string by extracting lines before
+        the last line starting with a hyphen.
+
+        Args:
+            input_str (str): The input string to be processed.
+
+        Returns:
+            str: The processed string.
+        """
+        lines = input_str.split("\n")
+        last_line_index = next(
+            (i for i, line in enumerate(lines[::-1]) if line.startswith("-")), None
+        )
+
+        if last_line_index is not None:
+            processed_lines = lines[: -last_line_index - 1]
+            return "\n".join(processed_lines)
+        return input_str
+
+    @staticmethod
+    def _count_cost(
+        model: str, prompt_tokens: float, completion_tokens: float
+    ) -> float:
+        if model == "gpt-3.5-turbo":
+            return (prompt_tokens / 1000) * 0.0015 + (completion_tokens / 1000) * 0.002
+        return (prompt_tokens / 1000) * 0.003 + (completion_tokens / 1000) * 0.004
+
+    def _count_tokens(self, content: str, model="gpt-3.5-turbo-0301") -> int:
         """
         Returns the number of tokens used by a list of messages.
 
@@ -144,12 +296,12 @@ class ReportGenerator:
             encoding = tiktoken.get_encoding("cl100k_base")
         if model == "gpt-3.5-turbo":
             return self._count_tokens(messages, model="gpt-3.5-turbo-0301")
-        elif model == "gpt-4":
+        if model == "gpt-4":
             return self._count_tokens(messages, model="gpt-4-0314")
-        elif model == "gpt-3.5-turbo-0301":
-            tokens_per_message = 4  
-            tokens_per_name = -1  
-        elif model == "gpt-4-0314":
+        if model == "gpt-3.5-turbo-0301":
+            tokens_per_message = 4
+            tokens_per_name = -1
+        if model == "gpt-4-0314":
             tokens_per_message = 3
             tokens_per_name = 1
         else:
@@ -161,113 +313,15 @@ class ReportGenerator:
                 num_tokens += len(encoding.encode(value))
                 if key == "name":
                     num_tokens += tokens_per_name
-        num_tokens += 3  
+        num_tokens += 3
         return num_tokens
-
-    @staticmethod
-    def _sumy(chinese_texts, num_sentences=25):
-        """Generates summaries for a list of Chinese texts using the Sumy library.
-
-        Args:
-            chinese_texts (list[str]): A list of Chinese texts to be summarized.
-            num_sentences (int, optional): The number of sentences to include in the summary.
-                Defaults to 3.
-
-        Returns:
-            list[str]: A list of summaries corresponding to the input Chinese texts.
-
-        Raises:
-            ValueError: If the input `chinese_texts` is not a list.
-        """
-        if not isinstance(chinese_texts, list):
-            raise ValueError("Input 'chinese_texts' must be a list of strings.")
-
-        translator = Translate()
-        summaries = []
-
-        for chinese_text in chinese_texts:
-            english_text = translator.translate(
-                chinese_text, target="en"
-            ).translatedText
-            parser = PlaintextParser.from_string(english_text, Tokenizer("english"))
-            summarizer = LsaSummarizer()
-            summary = summarizer(parser.document, num_sentences)
-
-            summary_text = " ".join(str(sentence) for sentence in summary)
-            translated_summary = translator.translate(
-                summary_text, target="zh-TW"
-            ).translatedText
-            summaries.append(translated_summary)
-        print(summaries)
-
-        return summaries
-
-    def _generate_summary(self, aggregated_strings: str) -> str:
-        """
-        Generates a highlight based on the aggregated strings.
-
-        Args:
-            aggregated_strings (str): The aggregated strings from the meeting records.
-
-        Returns:
-            str: The generated highlight as a string.
-        """
-        content = """
-        會議紀錄：
-        「{aggregated_strings}」
-        你要從以上會議紀錄摘要出重點討論的事項之重點說明
-        你的回應格式：
-
-        1.[事件標題]：
-        - [事件重點說明]
-        
-        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
-        你的回應：
-        """
-        prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
-        highlight = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
-        )
-        print("Successfully generate highlight.")
-        return highlight
-
-    def _generate_follow_ups(self, aggregated_strings: str) -> str:
-        """
-        Generates a progress report based on the aggregated strings.
-
-        Args:
-            aggregated_strings (str): The aggregated strings from the meeting records.
-
-        Returns:
-            str: The generated progress report as a string.
-        """
-        content = """
-        會議紀錄：
-        「{aggregated_strings}」
-        你要根據以上會議紀錄來摘要出會議後要做的重點事項
-        你的回應格式：
-
-        - [要做的重點事項]
-        
-        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
-        你的回應：
-        """
-        prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中提到會議後需要做的重點事項"
-        todo_list = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
-        )
-        print("Successfully generate progress.")
-        time.sleep(10)
-        return todo_list
 
     def get_report_usage(self) -> Tuple[int, int, int, float]:
         """Calculate the report usage.
 
         Returns:
             Tuple[int, int, int, float]: A tuple containing the prompt tokens, completion tokens,
-            total tokens, and cost.
+            total tokens, and total cost.
         """
         prompt_tokens = self.prompt_tokens
         completion_tokens = self.completion_tokens
@@ -275,57 +329,27 @@ class ReportGenerator:
         total_cost = self.total_cost
 
         return prompt_tokens, completion_tokens, total_tokens, total_cost
-    
-    @staticmethod
-    def _process_string(input_str: str) -> str:
-        lines = input_str.split("\n")
-        last_line_index = None
-
-        for i in range(len(lines)-1, -1, -1):
-            if lines[i].startswith("-"):
-                last_line_index = i
-                break
-
-        if last_line_index is not None:
-            processed_lines = lines[:last_line_index+1]
-            processed_str = "\n".join(processed_lines)
-            return processed_str
-        else:
-            return input_str
-
 
     def generate_report(
         self, meeting_transcript: str, file_path: str, meeting_name: str
     ) -> str:
-        """Generates a meeting report based on the meeting transcript and saves it to a file.
+        """Generates a report based on the meeting transcript and saves it to a file.
 
         Args:
-            meeting_transcript (str): Transcript of the meeting.
-            file_path (str): File path to save the report.
-            meeting_name (str): Name of the meeting.
+            meeting_transcript (str): The meeting transcript as a string.
+            file_path (str): The path to save the report file.
+            meeting_name (str): The name of the meeting.
 
         Returns:
-            str: The generated meeting report.
+            str: The generated report as a string.
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
-        aggregated_strings = self._sumy(transcript_chunks)
+        aggregated_strings = self._sumy_transcript(transcript_chunks)
         summary = self._process_string(self._generate_summary(aggregated_strings))
         follow_ups = self._process_string(self._generate_follow_ups(aggregated_strings))
 
-        report = (
-            meeting_name
-            + "\n\n"
-            + "會議重點:\n"
-            + summary
-            + "\n\n"
-            + "後續行動：\n"
-            + follow_ups
-        )
-        report_dir = os.path.dirname(file_path)
-        report_file_name = os.path.basename(file_path).replace(
-            os.path.splitext(file_path)[1], "_report.txt"
-        )
-        report_file_path = os.path.join(report_dir, report_file_name)
+        report = f"{meeting_name}\n\n會議重點:\n{summary}\n\n後續行動：\n{follow_ups}"
+        report_file_path = os.path.splitext(file_path)[0] + "_report.txt"
 
         with open(report_file_path, "w", encoding="utf-8") as report_file:
             report_file.write(report)
