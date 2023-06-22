@@ -14,17 +14,18 @@ Usage:
 Example:
     converter = SpeechToTextConverter()
     text_result = converter.speech_to_text_go(file_path)
-
 """
 import os
 import math
+import logging
 from typing import Tuple
 from pydub import AudioSegment
 import openai
+import whisper
 from dotenv import load_dotenv
 
 load_dotenv()
-
+logging.basicConfig(level=logging.INFO)
 
 class SpeechToTextConverter:
     """
@@ -34,7 +35,6 @@ class SpeechToTextConverter:
 
     Attributes:
         model (str): The model used for transcription.
-
     """
 
     def __init__(self):
@@ -57,7 +57,6 @@ class SpeechToTextConverter:
 
         Returns:
             file_path (str): The path of the mp3 audio file.
-
         """
         try:
             if file_path.lower().endswith((".m4a", ".wav")):
@@ -69,17 +68,18 @@ class SpeechToTextConverter:
 
                 audio.export(mp3_path, format="mp3")
 
-                print("Converted to MP3:", mp3_path)
+                logging.info("Converted to MP3: %s", mp3_path)
                 file_path = mp3_path
         except FileNotFoundError:
-            print("File not found:", file_path)
+            logging.error("File not found: %s", file_path)
         except OSError as error:
-            print("An error occurred while converting to MP3:", str(error))
+            logging.error("An error occurred while converting to MP3: %s", str(error))
         except ValueError as error:
-            print("An error occurred while converting to MP3:", str(error))
+            logging.error("An error occurred while converting to MP3: %s", str(error))
 
-        print("Successfully converted to MP3")
+        logging.info("Successfully converted to MP3")
         return file_path
+
 
     @staticmethod
     def _split_audio(file_path: str, duration: int = 900) -> str:
@@ -92,7 +92,6 @@ class SpeechToTextConverter:
 
         Returns:
             str: The path of the directory containing the segmented audio files.
-
         """
         audio_data = AudioSegment.from_file(file_path, format="mp3")
         num_segments = math.ceil(audio_data.duration_seconds / duration)
@@ -112,10 +111,10 @@ class SpeechToTextConverter:
             output_path = os.path.join(output_dir, f"segment{i+1}.mp3")
             segment.export(output_path, format="mp3")
 
-        print("Audio split completely. Saved in:", output_dir)
+        logging.info("Audio split completely. Saved in: %s", output_dir)
         return output_dir
 
-    def _speech_to_text(self, audios_path: str) -> str:
+    def _call_whisper_api(self, audios_path: str) -> str:
         """
         Performs speech-to-text conversion on segmented audio files and generates a text file.
 
@@ -124,7 +123,6 @@ class SpeechToTextConverter:
 
         Returns:
             str: The extracted text from all transcriptions.
-
         """
         path = os.path.dirname(audios_path)
         base_name = os.path.basename(audios_path).replace("_segments", "")
@@ -144,8 +142,28 @@ class SpeechToTextConverter:
             file.write("\n".join(transcriptions))
 
         extracted_text = "\n".join(transcriptions)
-        print("Complete speech to text:", extracted_text)
+        logging.info("Complete speech to text: %s", extracted_text)
         return extracted_text
+
+    def _call_whisper_package(self, audio_path: str) -> str:
+        """
+        Transcribes the audio file using the Whisper package.
+
+        Args:
+            audio_path (str): The path to the audio file.
+
+        Returns:
+            str: The transcribed text.
+        """
+        try:
+            model = whisper.load_model("small")
+            transcript = model.transcribe(audio_path)
+            logging.info("Transcript: %s", transcript)
+            return transcript
+        except Exception as error:
+            logging.error("Error occurred during transcription: %s", str(error))
+            raise
+
 
     def _calculate_audio_minutes(self, audio_path: str) -> int:
         """Calculate the duration of an audio file in minutes.
@@ -158,7 +176,6 @@ class SpeechToTextConverter:
 
         Returns:
             int: The duration of the audio file in minutes.
-
         """
         try:
             audio = AudioSegment.from_file(audio_path)
@@ -174,14 +191,13 @@ class SpeechToTextConverter:
 
         Returns:
             Tuple[float, float]: A tuple containing the audio minutes and the total cost.
-
         """
         audio_minutes = self.audio_minutes
         cost = audio_minutes * 0.006
 
         return audio_minutes, cost
 
-    def speech_to_text_go(self, file_path: str) -> str:
+    def speech_to_text(self, file_path: str, use_package: bool) -> str:
         """
         Performs speech-to-text conversion on an audio file.
 
@@ -190,10 +206,15 @@ class SpeechToTextConverter:
 
         Returns:
             str: The transcript content.
-
         """
+        if use_package:
+            logging.info("Use whisper package")
+            return self._call_whisper_package(file_path)
+        
+        logging.info("Use whisper api")
         mp3_path = self._convert_to_mp3(file_path)
         audio_path = self._split_audio(mp3_path)
-        transcript = self._speech_to_text(audio_path)
+        transcript = self._call_whisper_api(audio_path)
         self.audio_minutes = self._calculate_audio_minutes(mp3_path)
+        
         return transcript

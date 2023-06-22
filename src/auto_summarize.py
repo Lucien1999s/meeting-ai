@@ -52,7 +52,7 @@ class ReportGenerator:
         self.total_cost = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-    def _call_openai(
+    def _call_openai_api(
         self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
     ) -> str:
         """Calls the OpenAI API for chat completion and returns the response.
@@ -205,7 +205,7 @@ class ReportGenerator:
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
         system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
-        summary = self._call_openai(
+        summary = self._call_openai_api(
             prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
         )
         logging.info("Successfully generate summary.")
@@ -234,7 +234,7 @@ class ReportGenerator:
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
         system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中提到會議後需要做的重點事項"
-        follow_ups = self._call_openai(
+        follow_ups = self._call_openai_api(
             prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
         )
         logging.info("Successfully generate follow ups.")

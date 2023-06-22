@@ -44,9 +44,12 @@ OPENAI_API_KEY = "Your_OpenAI_API_Key"
 ```bash
 {
     "file_url": "Your_Audio_File_path",
-    "meeting_name": "Your_Meeting_Title"
+    "meeting_name": "Your_Meeting_Title",
+    "use_package": true
 }
 ```
+
+- use_package: A boolean value indicating whether to use the Whisper package. Set it to true if you want to use the Whisper package for transcription, or set it to false to use the Whisper API ,the default is true.
 
 ### 5. Launch it
 
@@ -60,14 +63,10 @@ python main.py
 
 Input audio files (mp3, m4a, wav) will be automatically converted to verbatim.
 
-### 2. Generate highlight of meeting minutes
+### 2. Generate summary of meeting minutes
 
-Analyze and generate highlight of meeting minutes based on verbatim transcripts of meeting minutes.
+Analyze and generate summary of meeting minutes based on transcripts of meeting minutes.
 
-### 3. Generate progress list 
+### 3. Generate follow ups 
 
-Generate a progress list by analyzing and categorizing completed and pending tasks from meeting transcripts.
-
-### 4. Give smart suggestions
-
-Give smart suggestions based on pending tasks.
+Analyze and generate follow ups of meeting minutes based on transcripts of meeting minutes.
