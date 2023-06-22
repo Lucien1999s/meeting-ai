@@ -56,7 +56,6 @@ def test_chunk_transcript(mocker):
     chunks = ReportGenerator._chunk_transcript(transcript, chunk_size)
     assert chunks == expected_chunks
 
-    # 验证print函数是否正确调用
     assert builtins.print.call_count == 2
     builtins.print.assert_any_call("Split to", len(expected_chunks), " chunks.")
     builtins.print.assert_any_call("Successfully chunked transcripts.")

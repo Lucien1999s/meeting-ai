@@ -11,7 +11,6 @@ In order to realize the automation of meeting records, this project will hand ov
 .
 ├── README.md
 ├── config.json
-├── .env.example
 ├── main.py
 ├── requirements.txt
 ├── src
@@ -28,16 +27,25 @@ In order to realize the automation of meeting records, this project will hand ov
 git clone git@github.com:Lucien1999s/ai-meeting-project.git
 ```
 
-### 2. Set up .env with .env.example
-
-
-### 3. Set up config.json
-
-
-### 4. Install requirements
+### 2. Install requirements
 
 ```bash
 pip install -r requirements.txt
+```
+
+### 3. Set up .env with .env.example
+
+```bash
+OPENAI_API_KEY = "Your_OpenAI_API_Key"
+```
+
+### 4. Set up config.json
+
+```bash
+{
+    "file_url": "Your_Audio_File_path",
+    "meeting_name": "Your_Meeting_Title"
+}
 ```
 
 ### 5. Launch it

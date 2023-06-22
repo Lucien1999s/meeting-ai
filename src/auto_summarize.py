@@ -1,28 +1,12 @@
-"""
-This module provides a ReportGenerator class for generating meeting reports using the OpenAI API.
 
-It includes the following functionalities:
-- Calling the OpenAI API to generate responses based on prompts
-- Chunking transcripts into smaller segments
-- Summarizing Chinese texts using the Sumy library
-- Generating professional meeting content descriptions
-- Extracting meeting progress from aggregated strings
-- Generating recommendations for each uncomplete task
-
-Usage:
-1. Initialize the ReportGenerator object.
-2. Call the generate_report method to generate a meeting report based on the meeting transcript.
-
-Example:
-    generator = ReportGenerator()
-    report = generator.generate_report(meeting_transcript, file_path, meeting_name)
-
-"""
 
 import os
 import time
+import logging
 from typing import Tuple
 import openai
+from openai import OpenAIError
+import tiktoken
 from dotenv import load_dotenv
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
@@ -44,47 +28,56 @@ class ReportGenerator:
     def __init__(self):
         """Initializes a ReportGenerator object.
 
-        Sets the default values for the model, prompt tokens, and completion tokens.
+        Sets the default values for the prompt tokens, completion tokens, and total cost.
         The OpenAI API key is retrieved from the environment variable OPENAI_API_KEY.
         """
-        self.model = "gpt-3.5-turbo-16k"
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.total_cost = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
     def _call_openai(
         self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
     ) -> str:
-        """Calls the OpenAI API to generate a response based on the given prompt.
-
-        Args:
-            prompt (str): The user prompt.
-            system_prompt (str): The system prompt.
-            temperature (float): Controls the randomness of the output.
-                Higher values result in more random responses.
-            max_tokens (int): The maximum number of tokens to generate in the response.
-
-        Returns:
-            str: The generated response.
-        """
-        response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        prompt_tokens = response["usage"]["prompt_tokens"]
-        completion_tokens = response["usage"]["completion_tokens"]
-        res = response["choices"][0]["message"]["content"]
-        self.prompt_tokens += prompt_tokens
-        self.completion_tokens += completion_tokens
-        print("Prompt:", prompt_tokens)
-        print("Completion:", completion_tokens)
-        print(res)
-        return res
+        """"""
+        if self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens > 4000:
+            model = "gpt-3.5-turbo-16k"
+        else:
+            model = "gpt-3.5-turbo"
+        retries = 0
+        while retries < 3:
+            try:
+                response = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                prompt_tokens = response["usage"]["prompt_tokens"]
+                completion_tokens = response["usage"]["completion_tokens"]
+                cost = self._count_cost(model,prompt_tokens,completion_tokens)
+                res = response["choices"][0]["message"]["content"]
+                self.prompt_tokens += prompt_tokens
+                self.completion_tokens += completion_tokens
+                self.total_cost += cost
+                print("Use model:", model)
+                print("Prompt:", prompt_tokens)
+                print("Completion:", completion_tokens)
+                print("Cost: ",cost," USD")
+                print(res)
+                return res
+            except OpenAIError as e:
+                print("Error:", e)
+                retries += 1
+                if retries == 3:
+                    print("Failed to generate a response after 3 attempts. Aborting.")
+                    raise
+                else:
+                    print(f"Retrying ({retries}/3) after 10 seconds...")
+                    time.sleep(10)
 
     @staticmethod
     def _chunk_transcript(transcript: str, chunk_size: int = 4000) -> list:
@@ -117,6 +110,59 @@ class ReportGenerator:
         print("Split to", len(transcript_chunks), " chunks.")
         print("Successfully chunked transcripts.")
         return transcript_chunks
+    
+    @staticmethod
+    def _count_cost(model: str,prompt_tokens: float,completion_tokens: float) -> float:
+        if model == "gpt-3.5-turbo":
+            return (prompt_tokens/1000) * 0.0015 + (completion_tokens/1000) * 0.002
+        else:
+            return (prompt_tokens/1000) * 0.003 + (completion_tokens/1000) * 0.004
+
+    def _count_tokens(self,content: str, model="gpt-3.5-turbo-0301") -> int:
+        """
+        Returns the number of tokens used by a list of messages.
+
+        Args:
+            content (str): The content of the message.
+            model (str, optional): The name of the language model. Defaults to "gpt-3.5-turbo-0301".
+
+        Returns:
+            int: The number of tokens used by the messages.
+
+        Raises:
+            NotImplementedError: If the specified model is not implemented.
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": content,
+            },
+        ]
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        if model == "gpt-3.5-turbo":
+            return self._count_tokens(messages, model="gpt-3.5-turbo-0301")
+        elif model == "gpt-4":
+            return self._count_tokens(messages, model="gpt-4-0314")
+        elif model == "gpt-3.5-turbo-0301":
+            tokens_per_message = 4  
+            tokens_per_name = -1  
+        elif model == "gpt-4-0314":
+            tokens_per_message = 3
+            tokens_per_name = 1
+        else:
+            raise NotImplementedError("error")
+        num_tokens = 0
+        for message in messages:
+            num_tokens += tokens_per_message
+            for key, value in message.items():
+                num_tokens += len(encoding.encode(value))
+                if key == "name":
+                    num_tokens += tokens_per_name
+        num_tokens += 3  
+        return num_tokens
 
     @staticmethod
     def _sumy(chinese_texts, num_sentences=25):
@@ -156,7 +202,7 @@ class ReportGenerator:
 
         return summaries
 
-    def _generate_highlight(self, aggregated_strings: str) -> str:
+    def _generate_summary(self, aggregated_strings: str) -> str:
         """
         Generates a highlight based on the aggregated strings.
 
@@ -167,23 +213,26 @@ class ReportGenerator:
             str: The generated highlight as a string.
         """
         content = """
-        我要你先閱讀以下會議紀錄：
+        會議紀錄：
         「{aggregated_strings}」
-        你的任務是根據此公司的會議紀錄提供一段概覽
-        你的格式應該如下：
-        [一段概覽]
-        我要你遵照以上格式要求來提供一段概覽
+        你要從以上會議紀錄摘要出重點討論的事項之重點說明
+        你的回應格式：
+
+        1.[事件標題]：
+        - [事件重點說明]
+        
+        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
         你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄摘要師，是專門寫出邏輯清晰易讀性強的概覽的摘要師"
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
         highlight = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1000
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
         )
         print("Successfully generate highlight.")
         return highlight
 
-    def _generate_progress(self, aggregated_strings: str) -> str:
+    def _generate_follow_ups(self, aggregated_strings: str) -> str:
         """
         Generates a progress report based on the aggregated strings.
 
@@ -194,64 +243,24 @@ class ReportGenerator:
             str: The generated progress report as a string.
         """
         content = """
-        我要你先閱讀以下會議紀錄：
+        會議紀錄：
         「{aggregated_strings}」
-        你的任務是從這個公司的會議紀錄中，列出有完成的事情或專案和待完成的事情或專案，並提供相應的事件敘述
-        你列出的每個事項都要有明確的敘述
-        你的格式應該如下：
+        你要根據以上會議紀錄來摘要出會議後要做的重點事項
+        你的回應格式：
 
-        完成事項：
-        - [某完成事件的敘述]
-        - [某完成事件的敘述]
-        ...
-
-        待完成事項：
-        - [某待完成事件的敘述]
-        - [某待完成事件的敘述]
-        ...
-        完成的事項不應該和待完成事項有重疊的事項
-        事項與事項之間不支持有過於類似的內容，若有類似的內容請合併為同一項事項
-        我要你遵照以上格式要求條列提供完成事項和待完成事項
+        - [要做的重點事項]
+        
+        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
         你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄分析師，專門找到會議紀錄中已經完成的事項和待完成的事項"
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中提到會議後需要做的重點事項"
         todo_list = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=700
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
         )
         print("Successfully generate progress.")
         time.sleep(10)
         return todo_list
-
-    def _generate_recommendations(self, progress: str) -> str:
-        """
-        Generates intelligent recommendations for each pending task based on the progress.
-
-        Args:
-            progress (str): The progress report containing completed and pending tasks.
-
-        Returns:
-            str: The generated recommendations for each pending task as a string.
-        """
-        content = """
-        以下是所有會議紀錄的完成事項和待完成事項
-        我要你針對每個待完成事項給予智能建議
-        智能建議是指如果要完成該項任務，可以從哪裡開始著手
-        完成事項和待完成事項：
-        [
-        {progress}
-        ]
-        我要你用數字條列的方式給我[待完成事項和智能建議]，其餘的不要多說
-        必須要是針對該待完成事項的智能建議，我要新奇和有用的智能建議
-        以下是你產生的逐項待完成事項智能建議之內容：
-        """
-        prompt = content.format(progress=progress)
-        system_prompt = "你是一個針對會議紀錄待完成事項提出好建議的專家"
-        recommandations = self._call_openai(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.9, max_tokens=2500
-        )
-        print("Successfully generate recommandations.")
-        return recommandations
 
     def get_report_usage(self) -> Tuple[int, int, int, float]:
         """Calculate the report usage.
@@ -263,9 +272,27 @@ class ReportGenerator:
         prompt_tokens = self.prompt_tokens
         completion_tokens = self.completion_tokens
         total_tokens = prompt_tokens + completion_tokens
-        cost = (total_tokens / 1000) * 0.002
+        total_cost = self.total_cost
 
-        return prompt_tokens, completion_tokens, total_tokens, cost
+        return prompt_tokens, completion_tokens, total_tokens, total_cost
+    
+    @staticmethod
+    def _process_string(input_str: str) -> str:
+        lines = input_str.split("\n")
+        last_line_index = None
+
+        for i in range(len(lines)-1, -1, -1):
+            if lines[i].startswith("-"):
+                last_line_index = i
+                break
+
+        if last_line_index is not None:
+            processed_lines = lines[:last_line_index+1]
+            processed_str = "\n".join(processed_lines)
+            return processed_str
+        else:
+            return input_str
+
 
     def generate_report(
         self, meeting_transcript: str, file_path: str, meeting_name: str
@@ -282,21 +309,17 @@ class ReportGenerator:
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
         aggregated_strings = self._sumy(transcript_chunks)
-        highlight = self._generate_highlight(aggregated_strings)
-        progress = self._generate_progress(aggregated_strings)
-        recommendations = self._generate_recommendations(progress)
+        summary = self._process_string(self._generate_summary(aggregated_strings))
+        follow_ups = self._process_string(self._generate_follow_ups(aggregated_strings))
 
         report = (
             meeting_name
             + "\n\n"
-            + "會議紀錄概要:\n"
-            + highlight
+            + "會議重點:\n"
+            + summary
             + "\n\n"
-            + "進度：\n"
-            + progress
-            + "\n\n"
-            + "智能建議:\n"
-            + recommendations
+            + "後續行動：\n"
+            + follow_ups
         )
         report_dir = os.path.dirname(file_path)
         report_file_name = os.path.basename(file_path).replace(
