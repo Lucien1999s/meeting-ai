@@ -41,7 +41,7 @@ def main():
 
     file_url = config["file_url"]
     meeting_name = config["meeting_name"]
-    use_package = config["use_package"]
+    use_api = config["use_api"]
 
     if not os.path.exists(file_url):
         print("File not found:", file_url)
@@ -67,7 +67,7 @@ def main():
             transcript = transcript_file.read()
     else:
         converter = SpeechToTextConverter()
-        transcript = converter.speech_to_text(file_url,use_package)
+        transcript = converter.speech_to_text(file_url,use_api)
         audio_minutes, transcript_cost = converter.get_transcript_usage()
 
     report_file = os.path.join(

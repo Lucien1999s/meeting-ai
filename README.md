@@ -45,11 +45,11 @@ OPENAI_API_KEY = "Your_OpenAI_API_Key"
 {
     "file_url": "Your_Audio_File_path",
     "meeting_name": "Your_Meeting_Title",
-    "use_package": true
+    "use_api": false
 }
 ```
 
-- use_package: A boolean value indicating whether to use the Whisper package. Set it to true if you want to use the Whisper package for transcription, or set it to false to use the Whisper API ,the default is true.
+- use_api: A boolean value indicating whether to use the Whisper api. Set it to true if you want to use the Whisper api for transcription, or set it to false to use the Whisper package ,the default is false.
 
 ### 5. Launch it
 

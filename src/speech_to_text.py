@@ -18,6 +18,7 @@ Example:
 import os
 import math
 import logging
+import shutil
 from typing import Tuple
 from pydub import AudioSegment
 import openai
@@ -124,10 +125,6 @@ class SpeechToTextConverter:
         Returns:
             str: The extracted text from all transcriptions.
         """
-        path = os.path.dirname(audios_path)
-        base_name = os.path.basename(audios_path).replace("_segments", "")
-        transcriptions_path = os.path.join(path, base_name + "_transcript.txt")
-
         transcriptions = []
 
         for file_name in sorted(os.listdir(audios_path)):
@@ -138,11 +135,15 @@ class SpeechToTextConverter:
                     transcription = transcript["text"].replace(" ", "\n")
                     transcriptions.append(transcription)
 
-        with open(transcriptions_path, "w", encoding="utf-8") as file:
-            file.write("\n".join(transcriptions))
-
         extracted_text = "\n".join(transcriptions)
         logging.info("Complete speech to text: %s", extracted_text)
+
+        path = os.path.dirname(audios_path)
+        base_name = os.path.basename(audios_path).replace("_segments", "")
+        transcriptions_path = os.path.join(path, base_name + "_transcript.txt")
+        with open(transcriptions_path, "w", encoding="utf-8") as file:
+            file.write(extracted_text)
+
         return extracted_text
 
     def _call_whisper_package(self, audio_path: str) -> str:
@@ -157,9 +158,16 @@ class SpeechToTextConverter:
         """
         try:
             model = whisper.load_model("small")
-            transcript = model.transcribe(audio_path)
-            logging.info("Transcript: %s", transcript)
-            return transcript
+            result = model.transcribe(audio_path)
+            transcriptions = result["text"]
+            logging.info("Complete speech to text: %s", transcriptions)
+            path = os.path.dirname(audio_path)
+            base_name = os.path.basename(audio_path)
+            file_name = os.path.splitext(base_name)[0]
+            transcript_path = os.path.join(path, f"{file_name}_transcript.txt")
+            with open(transcript_path, "w", encoding="utf-8") as file:
+                file.write(transcriptions)
+            return transcriptions
         except Exception as error:
             logging.error("Error occurred during transcription: %s", str(error))
             raise
@@ -197,7 +205,7 @@ class SpeechToTextConverter:
 
         return audio_minutes, cost
 
-    def speech_to_text(self, file_path: str, use_package: bool) -> str:
+    def speech_to_text(self, file_path: str, use_api: bool) -> str:
         """
         Performs speech-to-text conversion on an audio file.
 
@@ -207,14 +215,16 @@ class SpeechToTextConverter:
         Returns:
             str: The transcript content.
         """
-        if use_package:
-            logging.info("Use whisper package")
-            return self._call_whisper_package(file_path)
-        
-        logging.info("Use whisper api")
-        mp3_path = self._convert_to_mp3(file_path)
-        audio_path = self._split_audio(mp3_path)
-        transcript = self._call_whisper_api(audio_path)
-        self.audio_minutes = self._calculate_audio_minutes(mp3_path)
-        
-        return transcript
+        if use_api:
+            logging.info("Use whisper api")
+            mp3_path = self._convert_to_mp3(file_path)
+            audio_path = self._split_audio(mp3_path)
+            transcript = self._call_whisper_api(audio_path)
+            self.audio_minutes = self._calculate_audio_minutes(mp3_path)
+            
+            segments_folder = os.path.join(os.path.dirname(file_path), os.path.basename(file_path).split(".")[0] + "_segments")
+            if os.path.exists(segments_folder):
+                shutil.rmtree(segments_folder)
+            return transcript
+        logging.info("Use whisper package")
+        return self._call_whisper_package(file_path)

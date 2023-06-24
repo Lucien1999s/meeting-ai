@@ -1,6 +1,5 @@
 {
     "file_url": "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/test.m4a",
     "meeting_name": "測試會議",
-    "use_package": false
+    "use_api": false
 }
-  
