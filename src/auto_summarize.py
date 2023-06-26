@@ -207,7 +207,7 @@ class ReportGenerator:
         prompt = content.format(aggregated_strings=aggregated_strings)
         system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
         summary = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1200
         )
         logging.info("Successfully generate summary.")
         return summary
@@ -247,7 +247,7 @@ class ReportGenerator:
     def _process_string(input_str: str) -> str:
         """
         Processes the input string by extracting lines before
-        the last line starting with a hyphen.
+        the last line starting with a hyphen and removing duplicate lines.
 
         Args:
             input_str (str): The input string to be processed.
@@ -262,8 +262,21 @@ class ReportGenerator:
 
         if last_line_index is not None:
             processed_lines = lines[: -last_line_index - 1]
-            return "\n".join(processed_lines)
-        return input_str
+
+            # 過濾掉重複的行
+            unique_lines = set()
+            filtered_lines = []
+            for line in processed_lines:
+                stripped_line = line.strip()
+                if stripped_line not in unique_lines:
+                    unique_lines.add(stripped_line)
+                    filtered_lines.append(line)
+
+            processed_str = "\n".join(filtered_lines)
+        else:
+            processed_str = input_str
+
+        return processed_str
 
     @staticmethod
     def _count_cost(

@@ -104,6 +104,11 @@ def main():
     logging.info("Usage: %s", usage_info)
     exporter = ReportExporter(output_url)
     exporter.export_txt(meeting_name, summary, follow_ups)
+    exporter.export_doc(meeting_name, summary, follow_ups)
+    exporter.export_pdf(meeting_name, summary, follow_ups)
+    exporter.export_json(meeting_name, summary, follow_ups)
+    exporter.export_xlsx(meeting_name, follow_ups)
+    exporter.export_csv(meeting_name, follow_ups)
 
 if __name__ == "__main__":
     main()
