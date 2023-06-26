@@ -16,6 +16,7 @@ In order to realize the automation of meeting records, this project will hand ov
 ├── src
 │   ├── auto_summarize.py
 │   └── speech_to_text.py
+│   └── export_records.py
 └── test
 ```
 
@@ -44,6 +45,7 @@ OPENAI_API_KEY = "Your_OpenAI_API_Key"
 ```bash
 {
     "file_url": "Your_Audio_File_path",
+    "output_url": "Your_Output_File_Path",
     "meeting_name": "Your_Meeting_Title",
     "use_api": false
 }
