@@ -15,9 +15,12 @@ Returns:
 """
 import os
 import json
+import logging
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import ReportGenerator
+from src.export_records import ReportExporter
 
+logging.basicConfig(level=logging.INFO)
 
 def main():
     """
@@ -27,7 +30,7 @@ def main():
     1. Retrieves the audio file from the specified URL.
     2. Converts the speech to text using the SpeechToTextConverter class.
     3. Generates a meeting report using the ReportGenerator class.
-    4. Prints the meeting report.
+    4. Save summary and follow up to txt using ReportExporter class.
 
     Args:
         None
@@ -40,6 +43,7 @@ def main():
         config = json.load(config_file)
 
     file_url = config["file_url"]
+    output_url = config["output_url"]
     meeting_name = config["meeting_name"]
     use_api = config["use_api"]
 
@@ -70,24 +74,14 @@ def main():
         transcript = converter.speech_to_text(file_url,use_api)
         audio_minutes, transcript_cost = converter.get_transcript_usage()
 
-    report_file = os.path.join(
-        os.path.dirname(file_url),
-        os.path.basename(file_url).replace(
-            os.path.splitext(file_url)[1], "_report.txt"
-        ),
-    )
-    if os.path.exists(report_file):
-        with open(report_file, "r", encoding="utf-8") as report_file:
-            report = report_file.read()
-    else:
-        report_generator = ReportGenerator()
-        report = report_generator.generate_report(transcript, file_url, meeting_name)
-        (
-            prompt_tokens,
-            completion_tokens,
-            total_tokens,
-            report_cost,
-        ) = report_generator.get_report_usage()
+    report_generator = ReportGenerator()
+    summary,follow_ups = report_generator.generate_report(transcript)
+    (
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        report_cost,
+    ) = report_generator.get_report_usage()
 
     usage_info = (
         "\n轉音檔分鐘數： "
@@ -107,9 +101,9 @@ def main():
         + " USD"
     )
 
-    print(report)
-    print("使用量和費用\n\n", usage_info)
-
+    logging.info("Usage: %s", usage_info)
+    exporter = ReportExporter(output_url)
+    exporter.export_txt(meeting_name, summary, follow_ups)
 
 if __name__ == "__main__":
     main()

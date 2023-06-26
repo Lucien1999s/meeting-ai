@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
+
 class SpeechToTextConverter:
     """
     SpeechToTextConverter class provides methods for converting speech to text.
@@ -42,7 +43,7 @@ class SpeechToTextConverter:
         """
         Initializes a new instance of the SpeechToTextConverter class.
 
-        The constructor sets the default model to "whisper-1" and loads 
+        The constructor sets the default model to "whisper-1" and loads
         the OpenAI API key from the environment.
         """
         self.model = "whisper-1"
@@ -80,7 +81,6 @@ class SpeechToTextConverter:
 
         logging.info("Successfully converted to MP3")
         return file_path
-
 
     @staticmethod
     def _split_audio(file_path: str, duration: int = 900) -> str:
@@ -146,9 +146,9 @@ class SpeechToTextConverter:
 
         return extracted_text
 
-    def _call_whisper_package(self, audio_path: str) -> str:
+    def _call_whisper_oss(self, audio_path: str) -> str:
         """
-        Transcribes the audio file using the Whisper package.
+        Transcribes the audio file using the Whisper Open Source Software.
 
         Args:
             audio_path (str): The path to the audio file.
@@ -171,7 +171,6 @@ class SpeechToTextConverter:
         except Exception as error:
             logging.error("Error occurred during transcription: %s", str(error))
             raise
-
 
     def _calculate_audio_minutes(self, audio_path: str) -> int:
         """Calculate the duration of an audio file in minutes.
@@ -221,10 +220,13 @@ class SpeechToTextConverter:
             audio_path = self._split_audio(mp3_path)
             transcript = self._call_whisper_api(audio_path)
             self.audio_minutes = self._calculate_audio_minutes(mp3_path)
-            
-            segments_folder = os.path.join(os.path.dirname(file_path), os.path.basename(file_path).split(".")[0] + "_segments")
+
+            segments_folder = os.path.join(
+                os.path.dirname(file_path),
+                os.path.basename(file_path).split(".")[0] + "_segments",
+            )
             if os.path.exists(segments_folder):
                 shutil.rmtree(segments_folder)
             return transcript
         logging.info("Use whisper package")
-        return self._call_whisper_package(file_path)
+        return self._call_whisper_oss(file_path)

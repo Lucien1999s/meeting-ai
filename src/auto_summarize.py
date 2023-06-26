@@ -4,7 +4,6 @@ This module provides a ReportGenerator class for generating meeting reports usin
 It includes the following functionalities:
 - Generating summaries based on meeting transcripts
 - Generating follow-ups based on meeting transcripts
-- Saving reports to a file
 
 Usage:
 1. Initialize the ReportGenerator object.
@@ -12,8 +11,7 @@ Usage:
 
 Example:
     generator = ReportGenerator()
-    report = generator.generate_report(meeting_transcript, file_path, meeting_name)
-    print(report)
+    summary, follow_ups = generator.generate_report(meeting_transcript)
 """
 import os
 import time
@@ -72,7 +70,7 @@ class ReportGenerator:
         token_count = (
             self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens
         )
-        model = "gpt-3.5-turbo-16k" if token_count > 4000 else "gpt-3.5-turbo"
+        model = "gpt-3.5-turbo-16k" if token_count > 4095 else "gpt-3.5-turbo"
 
         for retry in range(3):
             try:
@@ -195,10 +193,13 @@ class ReportGenerator:
         會議紀錄：
         「{aggregated_strings}」
         你要從以上會議紀錄摘要出重點討論的事項之重點說明
+        我要你只紀錄重要的部分
         你的回應格式：
 
         1.[事件標題]：
-        - [事件重點說明]
+        - [事件重點簡短說明]
+        2.[事件標題]：
+        - [事件重點簡短說明]
         
         我要你潤飾文字和修正錯字，並且寫易讀性高的回應
         你的回應：
@@ -225,6 +226,8 @@ class ReportGenerator:
         會議紀錄：
         「{aggregated_strings}」
         你要根據以上會議紀錄來摘要出會議後要做的重點事項
+        我要你只給出重要的要做的事
+        你會以該公司員工的角度寫要做的事情
         你的回應格式：
 
         - [要做的重點事項]
@@ -276,7 +279,7 @@ class ReportGenerator:
 
         Args:
             content (str): The content of the message.
-            model (str, optional): The name of the language model. Defaults to "gpt-3.5-turbo-0301".
+            model (str, optional): The name of the language model. Defaults to "gpt-3.5-turbo-0613".
 
         Returns:
             int: The number of tokens used by the messages.
@@ -302,17 +305,21 @@ class ReportGenerator:
             "gpt-4-32k-0314",
             "gpt-4-0613",
             "gpt-4-32k-0613",
-            }:
+        }:
             tokens_per_message = 3
             tokens_per_name = 1
         elif model == "gpt-3.5-turbo-0301":
-            tokens_per_message = 4  
-            tokens_per_name = -1  
+            tokens_per_message = 4
+            tokens_per_name = -1
         elif "gpt-3.5-turbo" in model:
-            print("Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
+            print(
+                "Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613."
+            )
             return self._count_tokens(messages, model="gpt-3.5-turbo-0613")
         elif "gpt-4" in model:
-            print("Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613.")
+            print(
+                "Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613."
+            )
             return self._count_tokens(messages, model="gpt-4-0613")
         else:
             raise NotImplementedError(
@@ -325,9 +332,9 @@ class ReportGenerator:
                 num_tokens += len(encoding.encode(value))
                 if key == "name":
                     num_tokens += tokens_per_name
-        num_tokens += 3  
+        num_tokens += 3
         return num_tokens
-    
+
     def get_report_usage(self) -> Tuple[int, int, int, float]:
         """Calculate the report usage.
 
@@ -342,28 +349,18 @@ class ReportGenerator:
 
         return prompt_tokens, completion_tokens, total_tokens, total_cost
 
-    def generate_report(
-        self, meeting_transcript: str, file_path: str, meeting_name: str
-    ) -> str:
-        """Generates a report based on the meeting transcript and saves it to a file.
+    def generate_report(self, meeting_transcript: str) -> Tuple[str, str]:
+        """Generates a report based on the meeting transcript.
 
         Args:
             meeting_transcript (str): The meeting transcript as a string.
-            file_path (str): The path to save the report file.
-            meeting_name (str): The name of the meeting.
 
         Returns:
-            str: The generated report as a string.
+            Tuple[str, str]: A tuple containing the generated summary and follow-ups as strings.
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
         aggregated_strings = self._sumy_transcript(transcript_chunks)
         summary = self._process_string(self._generate_summary(aggregated_strings))
         follow_ups = self._process_string(self._generate_follow_ups(aggregated_strings))
 
-        report = f"{meeting_name}\n\n會議重點:\n{summary}\n\n後續行動：\n{follow_ups}"
-        report_file_path = os.path.splitext(file_path)[0] + "_report.txt"
-
-        with open(report_file_path, "w", encoding="utf-8") as report_file:
-            report_file.write(report)
-
-        return report
+        return summary, follow_ups
