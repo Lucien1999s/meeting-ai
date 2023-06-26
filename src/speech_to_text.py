@@ -46,7 +46,8 @@ class SpeechToTextConverter:
         The constructor sets the default model to "whisper-1" and loads
         the OpenAI API key from the environment.
         """
-        self.model = "whisper-1"
+        self.api_model = "whisper-1"
+        self.oss_model = "small"
         self.audio_minutes = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -131,7 +132,7 @@ class SpeechToTextConverter:
             if file_name.endswith(".mp3"):
                 input_file = os.path.join(audios_path, file_name)
                 with open(input_file, "rb") as audio_file:
-                    transcript = openai.Audio.transcribe(self.model, audio_file)
+                    transcript = openai.Audio.transcribe(self.api_model, audio_file)
                     transcription = transcript["text"].replace(" ", "\n")
                     transcriptions.append(transcription)
 
@@ -157,7 +158,7 @@ class SpeechToTextConverter:
             str: The transcribed text.
         """
         try:
-            model = whisper.load_model("small")
+            model = whisper.load_model(self.oss_model)
             result = model.transcribe(audio_path)
             transcriptions = result["text"]
             logging.info("Complete speech to text: %s", transcriptions)
