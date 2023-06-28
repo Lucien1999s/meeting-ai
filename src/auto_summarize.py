@@ -193,7 +193,6 @@ class ReportGenerator:
         會議紀錄：
         「{aggregated_strings}」
         你要從以上會議紀錄摘要出重點討論的事項之重點說明
-        我要你只紀錄重要的部分
         你的回應格式：
 
         1.[事件標題]：
@@ -202,6 +201,7 @@ class ReportGenerator:
         - [事件重點簡短說明]
         
         我要你潤飾文字和修正錯字，並且寫易讀性高的回應
+        你會統整重要的項目，盡量讓重點說明數量簡潔
         你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
@@ -233,6 +233,7 @@ class ReportGenerator:
         - [要做的重點事項]
         
         我要你潤飾文字和修正錯字，並且寫易讀性高的回應
+        你只統整重要的事情，並讓要做的事情數量簡潔
         你的回應：
         """
         prompt = content.format(aggregated_strings=aggregated_strings)
@@ -247,7 +248,7 @@ class ReportGenerator:
     def _process_string(input_str: str) -> str:
         """
         Processes the input string by extracting lines before
-        the last line starting with a hyphen and removing duplicate lines.
+        the last line starting with a hyphen.
 
         Args:
             input_str (str): The input string to be processed.
@@ -256,27 +257,29 @@ class ReportGenerator:
             str: The processed string.
         """
         lines = input_str.split("\n")
-        last_line_index = next(
-            (i for i, line in enumerate(lines[::-1]) if line.startswith("-")), None
-        )
+        last_line_index = None
+
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].startswith("-"):
+                last_line_index = i
+                break
 
         if last_line_index is not None:
-            processed_lines = lines[: -last_line_index - 1]
+            processed_lines = lines[: last_line_index + 1]
+            processed_str = "\n".join(processed_lines)
+            input_str = processed_str
 
-            # 過濾掉重複的行
-            unique_lines = set()
-            filtered_lines = []
-            for line in processed_lines:
-                stripped_line = line.strip()
-                if stripped_line not in unique_lines:
-                    unique_lines.add(stripped_line)
-                    filtered_lines.append(line)
+        lines = input_str.split("\n")
+        unique_lines = []
 
-            processed_str = "\n".join(filtered_lines)
-        else:
-            processed_str = input_str
+        for line in lines:
+            if not any(
+                line in unique_line or unique_line in line
+                for unique_line in unique_lines
+            ):
+                unique_lines.append(line)
 
-        return processed_str
+        return "\n".join(unique_lines)
 
     @staticmethod
     def _count_cost(

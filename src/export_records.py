@@ -50,6 +50,7 @@ class ReportExporter:
     Args:
         output_directory (str): The directory where the output files will be saved.
     """
+
     def __init__(self, output_directory):
         """
         Initializes a ReportExporter object.
@@ -110,8 +111,11 @@ class ReportExporter:
         summary_items = summary.split("\n")
         follow_ups_items = follow_ups.split("\n")
 
-        summary_html = "\n".join(
-            [f"<p>{item.strip()}</p>" for item in summary_items if item.strip()]
+        summary_html = (
+            "\n".join(
+                [f"<p>{item.strip()}</p>" for item in summary_items if item.strip()]
+            )
+            + "\n"
         )
         follow_ups_html = "\n".join(
             [f"<p>{item.strip()}</p>" for item in follow_ups_items if item.strip()]
@@ -126,7 +130,6 @@ class ReportExporter:
                 <h1>{meeting_name}</h1>
                 <h2>會議重點</h2>
                 {summary_html}
-                <div style="page-break-after: always;"></div>
                 <h2>後續行動</h2>
                 {follow_ups_html}
             </body>

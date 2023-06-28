@@ -30,7 +30,7 @@ def main():
     1. Retrieves the audio file from the specified URL.
     2. Converts the speech to text using the SpeechToTextConverter class.
     3. Generates a meeting report using the ReportGenerator class.
-    4. Save summary and follow up to txt using ReportExporter class.
+    4. Save summary and follow up to plenty of file's format using ReportExporter class.
 
     Args:
         None
@@ -104,10 +104,10 @@ def main():
     logging.info("Usage: %s", usage_info)
     exporter = ReportExporter(output_url)
     exporter.export_txt(meeting_name, summary, follow_ups)
-    exporter.export_doc(meeting_name, summary, follow_ups)
+   # exporter.export_doc(meeting_name, summary, follow_ups)
     exporter.export_pdf(meeting_name, summary, follow_ups)
-    exporter.export_json(meeting_name, summary, follow_ups)
-    exporter.export_xlsx(meeting_name, follow_ups)
+   # exporter.export_json(meeting_name, summary, follow_ups)
+   # exporter.export_xlsx(meeting_name, follow_ups)
     exporter.export_csv(meeting_name, follow_ups)
 
 if __name__ == "__main__":
