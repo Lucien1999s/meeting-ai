@@ -142,7 +142,7 @@ class ReportGenerator:
         return transcript_chunks
 
     @staticmethod
-    def _sumy_transcript(chinese_texts, num_sentences=23):
+    def _sumy_transcript(chinese_texts, num_sentences=23) -> list:
         """Generates summaries for a list of transcripts texts using the Sumy library.
 
         Args:
