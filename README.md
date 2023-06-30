@@ -68,7 +68,3 @@ Input audio files (mp3, m4a, wav) will be automatically converted to verbatim.
 ### 2. Generate summary of meeting minutes
 
 Analyze and generate summary of meeting minutes based on transcripts of meeting minutes.
-
-### 3. Generate follow ups 
-
-Analyze and generate follow ups of meeting minutes based on transcripts of meeting minutes.

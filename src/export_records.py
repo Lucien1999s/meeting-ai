@@ -1,7 +1,8 @@
 """
 Export Meeting Reports
 
-This script provides a `ReportExporter` class that handles exporting meeting reports to various file formats.
+This script provides a `ReportExporter` class that handles exporting meeting reports 
+to various file formats.
 
 Usage:
     1. Import the `ReportExporter` class from this module.
@@ -14,17 +15,17 @@ Example:
     # Create an instance of ReportExporter with the output directory
     exporter = ReportExporter(output_directory='/path/to/output')
 
-    # Export meeting summary and follow-up actions to a text file
-    exporter.export_txt(meeting_name='Meeting 1', summary='Meeting summary...', follow_ups='Follow-up actions...')
+    # Export meeting summary to a text file
+    exporter.export_txt(meeting_name='Meeting 1', summary='Meeting summary...')
 
-    # Export meeting summary and follow-up actions to a DOC file
-    exporter.export_doc(meeting_name='Meeting 1', summary='Meeting summary...', follow_ups='Follow-up actions...')
+    # Export meeting summary to a DOC file
+    exporter.export_doc(meeting_name='Meeting 1', summary='Meeting summary...')
 
-    # Export meeting summary and follow-up actions to a PDF file
-    exporter.export_pdf(meeting_name='Meeting 1', summary='Meeting summary...', follow_ups='Follow-up actions...')
+    # Export meeting summary to a PDF file
+    exporter.export_pdf(meeting_name='Meeting 1', summary='Meeting summary...')
 
-    # Export meeting summary and follow-up actions to a JSON file
-    exporter.export_json(meeting_name='Meeting 1', summary='Meeting summary...', follow_ups='Follow-up actions...')
+    # Export meeting summary to a JSON file
+    exporter.export_json(meeting_name='Meeting 1', summary='Meeting summary...')
 """
 import os
 import json
@@ -84,12 +85,11 @@ class ReportExporter:
 
     def export_pdf(self, meeting_name, summary):
         """
-        Exports the meeting summary and follow-up actions to a PDF file.
+        Exports the meeting summary to a PDF file.
 
         Args:
             meeting_name (str): The name of the meeting.
             summary (str): The summary of the meeting.
-            follow_ups (str): The follow-up actions from the meeting.
         """
         filename = f"{meeting_name}.pdf"
         filepath = os.path.join(self.output_directory, filename)
@@ -135,5 +135,5 @@ class ReportExporter:
             "summary": summary,
         }
 
-        with open(filepath, "w") as json_file:
+        with open(filepath, "w", encoding="utf-8") as json_file:
             json.dump(data, json_file)

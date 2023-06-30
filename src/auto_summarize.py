@@ -109,7 +109,7 @@ class ReportGenerator:
 
         Args:
             transcript (str): The transcript to be chunked.
-            chunk_size (int, optional): The maximum size of each chunk. Defaults to 4000.
+            chunk_size (int, optional): The maximum size of each chunk. Defaults to 6000.
 
         Returns:
             list: A list of transcript chunks.
@@ -136,6 +136,16 @@ class ReportGenerator:
         return transcript_chunks
 
     def _process_transcripts(self, transcript_chunks: list) -> list:
+        """
+        Processes the transcripts chunks and generates descriptive
+        paragraphs for meeting records.
+
+        Args:
+            transcript_chunks (list): List of transcript chunks.
+
+        Returns:
+            list: Processed transcripts as descriptive paragraphs.
+        """
         content = """
         會議逐字稿：
         「{transcript_chunk}」
@@ -195,8 +205,7 @@ class ReportGenerator:
     @staticmethod
     def _process_string(input_str: str) -> str:
         """
-        Processes the input string by extracting lines before
-        the last empty line, if the next line does not start with a digit.
+        Process the input string and return the processed string.
 
         Args:
             input_str (str): The input string to be processed.
@@ -228,6 +237,17 @@ class ReportGenerator:
     def _count_cost(
         model: str, prompt_tokens: float, completion_tokens: float
     ) -> float:
+        """
+        Count the cost of using the language model based on the model type and token counts.
+
+        Args:
+            model (str): The name of the language model.
+            prompt_tokens (float): The number of tokens in the prompt.
+            completion_tokens (float): The number of tokens in the completion.
+
+        Returns:
+            float: The calculated cost.
+        """
         if model == "gpt-3.5-turbo":
             return (prompt_tokens / 1000) * 0.0015 + (completion_tokens / 1000) * 0.002
         return (prompt_tokens / 1000) * 0.003 + (completion_tokens / 1000) * 0.004
@@ -255,7 +275,7 @@ class ReportGenerator:
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
-            print("Warning: model not found. Using cl100k_base encoding.")
+            logging.warning("Warning: model not found. Using cl100k_base encoding.")
             encoding = tiktoken.get_encoding("cl100k_base")
         if model in {
             "gpt-3.5-turbo-0613",
@@ -270,16 +290,6 @@ class ReportGenerator:
         elif model == "gpt-3.5-turbo-0301":
             tokens_per_message = 4
             tokens_per_name = -1
-        elif "gpt-3.5-turbo" in model:
-            print(
-                "Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613."
-            )
-            return self._count_tokens(messages, model="gpt-3.5-turbo-0613")
-        elif "gpt-4" in model:
-            print(
-                "Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613."
-            )
-            return self._count_tokens(messages, model="gpt-4-0613")
         else:
             raise NotImplementedError(
                 f"""num_tokens_from_messages() is not implemented for model {model}."""
@@ -315,7 +325,7 @@ class ReportGenerator:
             meeting_transcript (str): The meeting transcript as a string.
 
         Returns:
-            Tuple[str, str]: A tuple containing the generated summary and follow-ups as strings.
+            str: The generated report.
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
         processed_transcripts = self._process_transcripts(transcript_chunks)

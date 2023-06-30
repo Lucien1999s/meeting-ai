@@ -5,7 +5,7 @@ This function performs the following steps:
 1. Retrieves the audio file from the specified URL.
 2. Converts the speech to text using the SpeechToTextConverter class.
 3. Generates a meeting report using the MeetingReportGenerator class.
-4. Prints the meeting report.
+4. Export the meeting report.
 
 Args:
     None
@@ -22,6 +22,7 @@ from src.export_records import ReportExporter
 
 logging.basicConfig(level=logging.INFO)
 
+
 def main():
     """
     Main function: Extracts text from an audio file and generates a meeting report.
@@ -30,7 +31,7 @@ def main():
     1. Retrieves the audio file from the specified URL.
     2. Converts the speech to text using the SpeechToTextConverter class.
     3. Generates a meeting report using the ReportGenerator class.
-    4. Save summary and follow up to plenty of file's format using ReportExporter class.
+    4. Save summary to plenty of file's format using ReportExporter class.
 
     Args:
         None
@@ -71,7 +72,7 @@ def main():
             transcript = transcript_file.read()
     else:
         converter = SpeechToTextConverter()
-        transcript = converter.speech_to_text(file_url,use_api)
+        transcript = converter.speech_to_text(file_url, use_api)
         audio_minutes, transcript_cost = converter.get_transcript_usage()
 
     report_generator = ReportGenerator()
@@ -104,6 +105,7 @@ def main():
     logging.info("Usage: %s", usage_info)
     exporter = ReportExporter(output_url)
     exporter.export_pdf(meeting_name, summary)
+
 
 if __name__ == "__main__":
     main()

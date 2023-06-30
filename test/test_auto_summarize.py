@@ -43,7 +43,6 @@ def test_generate_report(mocker):
     expect_value = "我需要做一個測試程式"
     meeting_transcript = "我正在做一個測試程式該程式非常需要好好靜下心來學習並實作"
     generator._chunk_transcript = lambda transcript: expect_value
-    generator._sumy_transcript = lambda chinese_text: expect_value
     generator._process_string = lambda result: expect_value
 
     mock_result = mocker.patch("src.auto_summarize.openai.ChatCompletion.create")
