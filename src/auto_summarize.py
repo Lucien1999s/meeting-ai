@@ -1,9 +1,8 @@
 """
 This module provides a ReportGenerator class for generating meeting reports using the OpenAI API.
 
-It includes the following functionalities:
+It includes the following functionalitie:
 - Generating summaries based on meeting transcripts
-- Generating follow-ups based on meeting transcripts
 
 Usage:
 1. Initialize the ReportGenerator object.
@@ -11,7 +10,7 @@ Usage:
 
 Example:
     generator = ReportGenerator()
-    summary, follow_ups = generator.generate_report(meeting_transcript)
+    summary = generator.generate_report(meeting_transcript)
 """
 import os
 import time
@@ -21,11 +20,6 @@ import openai
 from openai import OpenAIError
 import tiktoken
 from dotenv import load_dotenv
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.lsa import LsaSummarizer
-from pygtrans import Translate
-
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -110,7 +104,7 @@ class ReportGenerator:
         return ""
 
     @staticmethod
-    def _chunk_transcript(transcript: str, chunk_size: int = 4000) -> list:
+    def _chunk_transcript(transcript: str, chunk_size: int = 6000) -> list:
         """Splits the transcript into chunks of a specified size.
 
         Args:
@@ -141,114 +135,68 @@ class ReportGenerator:
         logging.info("Successfully chunked transcripts.")
         return transcript_chunks
 
-    @staticmethod
-    def _sumy_transcript(chinese_texts, num_sentences=23) -> list:
-        """Generates summaries for a list of transcripts texts using the Sumy library.
+    def _process_transcripts(self, transcript_chunks: list) -> list:
+        content = """
+        會議逐字稿：
+        「{transcript_chunk}」
+        你的任務是將以上會議逐字稿寫成800字長篇會議紀錄敘述段落
+        我要你詳細記錄所有提到的事項和重要內容
+        格式是敘述式段落
+        你的回應以此開頭：在這次會議中...
+        """
+        processed_transcripts = []
+        for transcript_chunk in transcript_chunks:
+            prompt = content.format(transcript_chunk=transcript_chunk)
+            system_prompt = "你是一個會議逐字稿整理專家，專門將會議逐字稿內容寫成會議紀錄敘述段落"
+            processed_transcript = self._call_openai_api(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=0.1,
+                max_tokens=1200,
+            )
+            processed_transcript = processed_transcript.replace("\n", "")
+            processed_transcripts.append(processed_transcript)
+        logging.info("Successfully processed transcripts.")
+        return processed_transcripts
+
+    def _generate_summary(self, processed_transcripts: list) -> str:
+        """
+        Generates a summary based on the processed transcripts.
 
         Args:
-            chinese_texts (list[str]): A list of Chinese texts to be summarized.
-            num_sentences (int, optional): The number of sentences to include in the summary.
-                Defaults to 3.
-
-        Returns:
-            list[str]: A list of aggregated_strings corresponding to the input Chinese texts.
-
-        Raises:
-            ValueError: If the input `chinese_texts` is not a list.
-        """
-        if not isinstance(chinese_texts, list):
-            raise ValueError("Input 'chinese_texts' must be a list of strings.")
-
-        translator = Translate()
-        aggregated_strings = []
-
-        for chinese_text in chinese_texts:
-            english_text = translator.translate(
-                chinese_text, target="en"
-            ).translatedText
-            parser = PlaintextParser.from_string(english_text, Tokenizer("english"))
-            summarizer = LsaSummarizer()
-            summary = summarizer(parser.document, num_sentences)
-
-            summary_text = " ".join(str(sentence) for sentence in summary)
-            translated_summary = translator.translate(
-                summary_text, target="zh-TW"
-            ).translatedText
-            aggregated_strings.append(translated_summary)
-        logging.info("Aggregated: %s", aggregated_strings)
-
-        return aggregated_strings
-
-    def _generate_summary(self, aggregated_strings: str) -> str:
-        """
-        Generates a summary based on the aggregated strings.
-
-        Args:
-            aggregated_strings (str): The aggregated strings from the meeting records.
+            processed_transcripts (str): The aggregated strings from the meeting records.
 
         Returns:
             str: The generated summary as a string.
         """
         content = """
         會議紀錄：
-        「{aggregated_strings}」
-        你要從以上會議紀錄摘要出重點討論的事項之重點說明
-        你的回應格式：
-
+        「{processed_transcripts}」
+        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的說明敘述段落
+        要詳細記錄討論到的事件，說明敘述段落要詳細記錄
+        會議摘要格式：
         1.[事件標題]：
-        - [事件重點簡短說明]
+        會議中提到此事件...
         2.[事件標題]：
-        - [事件重點簡短說明]
+        會議中提到此事件...
         
-        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
-        你會統整重要的項目，盡量讓重點說明數量簡潔
-        你的回應：
+        我要你將相關的小項目歸類成同一個大項目且內容要詳細
+        我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
+        你的回應以此開頭：1 ...
         """
-        prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
+        prompt = content.format(processed_transcripts=processed_transcripts)
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的說明敘述段落"
         summary = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1200
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2000
         )
         logging.info("Successfully generate summary.")
         return summary
-
-    def _generate_follow_ups(self, aggregated_strings: str) -> str:
-        """
-        Generates follow ups based on the aggregated strings.
-
-        Args:
-            aggregated_strings (str): The aggregated strings from the meeting records.
-
-        Returns:
-            str: The generated follow ups as a string.
-        """
-        content = """
-        會議紀錄：
-        「{aggregated_strings}」
-        你要根據以上會議紀錄來摘要出會議後要做的重點事項
-        我要你只給出重要的要做的事
-        你會以該公司員工的角度寫要做的事情
-        你的回應格式：
-
-        - [要做的重點事項]
-        
-        我要你潤飾文字和修正錯字，並且寫易讀性高的回應
-        你只統整重要的事情，並讓要做的事情數量簡潔
-        你的回應：
-        """
-        prompt = content.format(aggregated_strings=aggregated_strings)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中提到會議後需要做的重點事項"
-        follow_ups = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=1000
-        )
-        logging.info("Successfully generate follow ups.")
-        return follow_ups
 
     @staticmethod
     def _process_string(input_str: str) -> str:
         """
         Processes the input string by extracting lines before
-        the last line starting with a hyphen.
+        the last empty line, if the next line does not start with a digit.
 
         Args:
             input_str (str): The input string to be processed.
@@ -256,30 +204,25 @@ class ReportGenerator:
         Returns:
             str: The processed string.
         """
+        input_str = input_str.replace("[", "").replace("]", "")
         lines = input_str.split("\n")
-        last_line_index = None
+        last_empty_line_index = None
 
         for i in range(len(lines) - 1, -1, -1):
-            if lines[i].startswith("-"):
-                last_line_index = i
+            if lines[i].strip() == "":
+                last_empty_line_index = i
                 break
 
-        if last_line_index is not None:
-            processed_lines = lines[: last_line_index + 1]
-            processed_str = "\n".join(processed_lines)
-            input_str = processed_str
+        if last_empty_line_index is not None and last_empty_line_index < len(lines) - 1:
+            next_line = lines[last_empty_line_index + 1].strip()
+            if not next_line[0].isdigit():
+                output_str = "\n".join(lines[:last_empty_line_index])
+            else:
+                output_str = input_str
+        else:
+            output_str = input_str
 
-        lines = input_str.split("\n")
-        unique_lines = []
-
-        for line in lines:
-            if not any(
-                line in unique_line or unique_line in line
-                for unique_line in unique_lines
-            ):
-                unique_lines.append(line)
-
-        return "\n".join(unique_lines)
+        return output_str
 
     @staticmethod
     def _count_cost(
@@ -365,7 +308,7 @@ class ReportGenerator:
 
         return prompt_tokens, completion_tokens, total_tokens, total_cost
 
-    def generate_report(self, meeting_transcript: str) -> Tuple[str, str]:
+    def generate_report(self, meeting_transcript: str) -> str:
         """Generates a report based on the meeting transcript.
 
         Args:
@@ -375,8 +318,7 @@ class ReportGenerator:
             Tuple[str, str]: A tuple containing the generated summary and follow-ups as strings.
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
-        aggregated_strings = self._sumy_transcript(transcript_chunks)
-        summary = self._process_string(self._generate_summary(aggregated_strings))
-        follow_ups = self._process_string(self._generate_follow_ups(aggregated_strings))
+        processed_transcripts = self._process_transcripts(transcript_chunks)
+        summary = self._process_string(self._generate_summary(processed_transcripts))
 
-        return summary, follow_ups
+        return summary
