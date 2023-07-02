@@ -40,20 +40,28 @@ def test_get_report_usage_with_default_values():
 
 def test_generate_report(mocker):
     generator = ReportGenerator()
-    expect_value = "我需要做一個測試程式"
-    meeting_transcript = "我正在做一個測試程式該程式非常需要好好靜下心來學習並實作"
-    generator._chunk_transcript = lambda transcript: expect_value
-    generator._process_string = lambda result: expect_value
+    expect_value = """1.test
+    test content
+
+    2.test
+    test content"""
+    return_value = """1.[test]
+    test content
+
+    2.[test]
+    test content
+
+    that is a test"""
+    meeting_transcript = "這是傳入的原始會議紀錄"
 
     mock_result = mocker.patch("src.auto_summarize.openai.ChatCompletion.create")
     mock_result.return_value = {
-        "choices": [{"message": {"content": expect_value}}],
+        "choices": [{"message": {"content": return_value}}],
         "usage": {"prompt_tokens": 20, "completion_tokens": 30},
     }
-    summary, follow_ups = generator.generate_report(meeting_transcript)
+    result = generator.generate_report(meeting_transcript)
 
-    assert summary == expect_value
-    assert follow_ups == expect_value
+    assert result == expect_value
 
 
 def test_generate_report_with_error(mocker):
