@@ -1,5 +1,6 @@
 """
-This module provides a ReportGenerator class for generating meeting reports using the OpenAI API.
+This module provides a ReportGenerator class for generating meeting
+reports using the OpenAI API.
 
 It includes the following functionalitie:
 - Generating summaries based on meeting transcripts
@@ -27,7 +28,8 @@ logging.basicConfig(level=logging.INFO)
 
 class ReportGenerator:
     """
-    ReportGenerator class provides methods for generating meeting reports using OpenAI API.
+    ReportGenerator class provides methods for generating
+    meeting reports using OpenAI API.
 
     Attributes:
         model (str): The model used for report generation.
@@ -36,8 +38,10 @@ class ReportGenerator:
     def __init__(self):
         """Initializes a ReportGenerator object.
 
-        Sets the default values for the prompt tokens, completion tokens, and total cost.
-        The OpenAI API key is retrieved from the environment variable OPENAI_API_KEY.
+        Sets the default values for the prompt tokens,
+        completion tokens, and total cost.
+        The OpenAI API key is retrieved from
+        the environment variable OPENAI_API_KEY.
         """
         self.prompt_tokens = 0
         self.completion_tokens = 0
@@ -53,7 +57,8 @@ class ReportGenerator:
             prompt (str): The user's prompt for chat completion.
             system_prompt (str): The system's prompt for chat completion.
             temperature (float): Controls the randomness of the response.
-            max_tokens (int): The maximum number of tokens in the generated response.
+            max_tokens (int): The maximum number of tokens in the
+            generated response.
 
         Returns:
             str: The generated chat response.
@@ -109,7 +114,8 @@ class ReportGenerator:
 
         Args:
             transcript (str): The transcript to be chunked.
-            chunk_size (int, optional): The maximum size of each chunk. Defaults to 6000.
+            chunk_size (int, optional): The maximum size of each chunk.
+            Defaults to 6000.
 
         Returns:
             list: A list of transcript chunks.
@@ -174,7 +180,8 @@ class ReportGenerator:
         Generates a summary based on the processed transcripts.
 
         Args:
-            processed_transcripts (str): The aggregated strings from the meeting records.
+            processed_transcripts (list): The processed transcripts list from
+            the meeting records.
 
         Returns:
             str: The generated summary as a string.
@@ -189,7 +196,7 @@ class ReportGenerator:
         會議中提到此事件...
         2.[事件標題]：
         會議中提到此事件...
-        
+
         我要你將相關的小項目歸類成同一個大項目且內容要詳細
         我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
         你的回應以此開頭：1 ...
@@ -252,7 +259,7 @@ class ReportGenerator:
             return (prompt_tokens / 1000) * 0.0015 + (completion_tokens / 1000) * 0.002
         return (prompt_tokens / 1000) * 0.003 + (completion_tokens / 1000) * 0.004
 
-    def _count_tokens(self, content, model="gpt-3.5-turbo-0613"):
+    def _count_tokens(self, content: str, model: str = "gpt-3.5-turbo-0613") -> int:
         """
         Returns the number of tokens used by a list of messages.
 
@@ -308,7 +315,8 @@ class ReportGenerator:
         """Calculate the report usage.
 
         Returns:
-            Tuple[int, int, int, float]: A tuple containing the prompt tokens, completion tokens,
+            Tuple[int, int, int, float]: A tuple containing
+            the prompt tokens, completion tokens,
             total tokens, and total cost.
         """
         prompt_tokens = self.prompt_tokens

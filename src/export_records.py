@@ -1,13 +1,15 @@
 """
 Export Meeting Reports
 
-This script provides a `ReportExporter` class that handles exporting meeting reports 
-to various file formats.
+This script provides a `ReportExporter` class that
+handles exporting meeting reports to various file formats.
 
 Usage:
     1. Import the `ReportExporter` class from this module.
-    2. Create an instance of `ReportExporter` by specifying the output directory.
-    3. Call the appropriate export methods to export meeting reports to different formats.
+    2. Create an instance of `ReportExporter` by specifying
+       the output directory.
+    3. Call the appropriate export methods to export meeting
+       reports to different formats.
 
 Example:
     from report_exporter import ReportExporter
@@ -16,16 +18,16 @@ Example:
     exporter = ReportExporter(output_directory='/path/to/output')
 
     # Export meeting summary to a text file
-    exporter.export_txt(meeting_name='Meeting 1', summary='Meeting summary...')
+    exporter.export_txt(meeting_name='Meeting 1', summary='Meeting ...')
 
     # Export meeting summary to a DOC file
-    exporter.export_doc(meeting_name='Meeting 1', summary='Meeting summary...')
+    exporter.export_doc(meeting_name='Meeting 1', summary='Meeting ...')
 
     # Export meeting summary to a PDF file
-    exporter.export_pdf(meeting_name='Meeting 1', summary='Meeting summary...')
+    exporter.export_pdf(meeting_name='Meeting 1', summary='Meeting ...')
 
     # Export meeting summary to a JSON file
-    exporter.export_json(meeting_name='Meeting 1', summary='Meeting summary...')
+    exporter.export_json(meeting_name='Meeting 1', summary='Meeting ...')
 """
 import os
 import json

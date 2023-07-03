@@ -1,5 +1,5 @@
 """
-This module provides a SpeechToTextConverter class for converting 
+This module provides a SpeechToTextConverter class for converting
 speech to text using the OpenAI API.
 
 It includes the following functionalities:
@@ -93,7 +93,8 @@ class SpeechToTextConverter:
             duration (int, optional): _description_. Defaults to 900.
 
         Returns:
-            str: The path of the directory containing the segmented audio files.
+            str: The path of the directory containing the segmented
+            audio files.
         """
         audio_data = AudioSegment.from_file(file_path, format="mp3")
         num_segments = math.ceil(audio_data.duration_seconds / duration)
@@ -118,10 +119,12 @@ class SpeechToTextConverter:
 
     def _call_whisper_api(self, audios_path: str) -> str:
         """
-        Performs speech-to-text conversion on segmented audio files and generates a text file.
+        Performs speech-to-text conversion on segmented audio files
+        and generates a text file.
 
         Args:
-            audios_path (str): The path of the directory containing the segmented audio files.
+            audios_path (str): The path of the directory containing
+            the segmented audio files.
 
         Returns:
             str: The extracted text from all transcriptions.
@@ -198,7 +201,8 @@ class SpeechToTextConverter:
         """Calculate the transcript usage.
 
         Returns:
-            Tuple[float, float]: A tuple containing the audio minutes and the total cost.
+            Tuple[float, float]: A tuple containing the audio minutes
+            and the total cost.
         """
         audio_minutes = self.audio_minutes
         cost = audio_minutes * 0.006

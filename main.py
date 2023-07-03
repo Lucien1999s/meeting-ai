@@ -25,7 +25,8 @@ logging.basicConfig(level=logging.INFO)
 
 def main():
     """
-    Main function: Extracts text from an audio file and generates a meeting report.
+    Main function: Extracts text from an audio file and generates
+    a meeting report.
 
     This function performs the following steps:
     1. Retrieves the audio file from the specified URL.

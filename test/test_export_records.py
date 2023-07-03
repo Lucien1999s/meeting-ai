@@ -70,7 +70,7 @@ def test_export_json(tmpdir):
     expected_file_path = os.path.join(output_directory, f"{meeting_name}.json")
     assert os.path.exists(expected_file_path)
 
-    with open(expected_file_path, "r") as file:
+    with open(expected_file_path, "r", encoding="utf-8") as file:
         data = json.load(file)
         assert data["meeting_name"] == meeting_name
         assert data["summary"] == summary

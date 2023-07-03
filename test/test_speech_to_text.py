@@ -62,3 +62,4 @@ def test_speech_to_text_oss(mocker, converter):
     assert result == expected_transcript
 
     mock_transcribe.assert_called_once_with(file_path)
+
