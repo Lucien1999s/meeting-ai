@@ -175,12 +175,41 @@ class ReportGenerator:
         logging.info("Successfully processed transcripts.")
         return processed_transcripts
 
-    def _generate_summary(self, processed_transcripts: list) -> str:
+    def _generate_paragraph(self, processed_transcripts: list) -> str:
         """
-        Generates a summary based on the processed transcripts.
+        Generates paragraphs based on the processed transcripts.
 
         Args:
             processed_transcripts (list): The processed transcripts list from
+            the meeting records.
+
+        Returns:
+            str: The generated paragraphs as a string.
+        """
+        content = """
+        以下是一個會議紀錄
+        你看完整個會議錄後，要為這些會議記錄摘要列表重新統整起來寫一個長篇專業會議敘述文
+        會議紀錄：
+        「{processed_transcripts}」
+        必須邏輯清楚的來寫整個會議紀錄的所有討論內容
+        格式上，應以專業報告形式，段落式書寫
+        你的回應以此開頭：在此次會議中...
+        """
+        prompt = content.format(processed_transcripts=processed_transcripts)
+        system_prompt = "你是一個專門為會議記錄進行整理並寫一個長篇專業敘述文的專家"
+        paragraphs = self._call_openai_api(
+            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=3000
+        )
+        logging.info("Successfully generate paragraphs.")
+        return paragraphs
+
+
+    def _generate_summary(self, paragraphs: str) -> str:
+        """
+        Generates a summary based on paragraphs.
+
+        Args:
+            paragraphs (str): The summaries paragraphs from
             the meeting records.
 
         Returns:
@@ -189,22 +218,21 @@ class ReportGenerator:
         content = """
         會議紀錄：
         「{processed_transcripts}」
-        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的說明敘述段落
-        要詳細記錄討論到的事件，說明敘述段落要詳細記錄
+        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的重點說明
+        根據討論內容來數字逐列事件，要詳細說明該事件重點
         會議摘要格式：
         1.[事件標題]：
-        會議中提到此事件...
+        - 重點說明...
         2.[事件標題]：
-        會議中提到此事件...
+        - 重點說明...
 
-        我要你將相關的小項目歸類成同一個大項目且內容要詳細
         我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
         你的回應以此開頭：1 ...
         """
         prompt = content.format(processed_transcripts=processed_transcripts)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的說明敘述段落"
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
         summary = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2000
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1500
         )
         logging.info("Successfully generate summary.")
         return summary
@@ -337,6 +365,6 @@ class ReportGenerator:
         """
         transcript_chunks = self._chunk_transcript(meeting_transcript)
         processed_transcripts = self._process_transcripts(transcript_chunks)
-        summary = self._process_string(self._generate_summary(processed_transcripts))
-
+        paragraphs = self._generate_paragraph(processed_transcripts)
+        summary = self._process_string(self._generate_summary(paragraphs))
         return summary
