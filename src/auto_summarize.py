@@ -217,20 +217,22 @@ class ReportGenerator:
         """
         content = """
         會議紀錄：
-        「{processed_transcripts}」
-        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的重點說明
-        根據討論內容來數字逐列事件，要詳細說明該事件重點
+        「{paragraphs}」
+        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的重點敘述
+        根據討論內容來數字逐列事件，要重點敘述該事件的重點
+        根據會議紀錄中的每件事情適當分類說明
+
         會議摘要格式：
         1.[事件標題]：
-        - 重點說明...
+        - 事件重點說明...
         2.[事件標題]：
-        - 重點說明...
+        - 事件重點說明...
 
         我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
         你的回應以此開頭：1 ...
         """
-        prompt = content.format(processed_transcripts=processed_transcripts)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來條列出會議中的重點說明"
+        prompt = content.format(paragraphs=paragraphs)
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來數字條列出會議中的事件並重點敘述每一項事件"
         summary = self._call_openai_api(
             prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1500
         )

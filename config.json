@@ -1,6 +1,6 @@
 {
-    "file_url": "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/ai_meeting2.m4a",
+    "file_url": "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/ai_meeting.m4a",
     "output_url": "/Users/lucienlin/Desktop/work_files",
-    "meeting_name": "AI會議2",
-    "use_api": true
+    "meeting_name": "AI會議",
+    "use_api": false
 }

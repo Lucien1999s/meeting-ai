@@ -47,7 +47,7 @@ class SpeechToTextConverter:
         the OpenAI API key from the environment.
         """
         self.api_model = "whisper-1"
-        self.oss_model = "small"
+        self.oss_model = whisper.load_model("small")
         self.audio_minutes = 0
         openai.api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -161,7 +161,7 @@ class SpeechToTextConverter:
             str: The transcribed text.
         """
         try:
-            model = whisper.load_model(self.oss_model)
+            model = self.oss_model
             result = model.transcribe(audio_path)
             transcriptions = result["text"]
             logging.info("Complete speech to text: %s", transcriptions)
