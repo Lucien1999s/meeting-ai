@@ -1,38 +1,29 @@
 """
 Export Meeting Reports
 
-This script provides a `ReportExporter` class that
-handles exporting meeting reports to various file formats.
+This script provides a class for exporting meeting reports to various file formats, such as text and JSON.
 
 Usage:
-    1. Import the `ReportExporter` class from this module.
-    2. Create an instance of `ReportExporter` by specifying
-       the output directory.
-    3. Call the appropriate export methods to export meeting
-       reports to different formats.
+    1. Initialize the `ReportExporter` class with the following arguments:
+       - output_directory (str): The directory where the output files will be saved.
+       - meeting_name (str): The name of the meeting.
+       - summary (str): The summary of the meeting.
+       - usage (str): The usage details of the meeting report.
+
+    2. Call the `export_file` method to export the meeting report in both text and JSON formats.
 
 Example:
-    from report_exporter import ReportExporter
+    # Initialize the ReportExporter class
+    exporter = ReportExporter(output_directory="/path/to/output", meeting_name="Meeting 1",
+                              summary="Summary of the meeting...", usage="Usage details...")
 
-    # Create an instance of ReportExporter with the output directory
-    exporter = ReportExporter(output_directory='/path/to/output')
-
-    # Export meeting summary to a text file
-    exporter.export_txt(meeting_name='Meeting 1', summary='Meeting ...')
-
-    # Export meeting summary to a DOC file
-    exporter.export_doc(meeting_name='Meeting 1', summary='Meeting ...')
-
-    # Export meeting summary to a PDF file
-    exporter.export_pdf(meeting_name='Meeting 1', summary='Meeting ...')
-
-    # Export meeting summary to a JSON file
-    exporter.export_json(meeting_name='Meeting 1', summary='Meeting ...')
+    # Export the meeting report
+    exporter.export_file()
 """
+
 import os
 import json
 import logging
-from weasyprint import HTML
 
 logging.getLogger("fontTools").setLevel(logging.WARNING)
 logging.basicConfig(level=logging.INFO)
@@ -44,98 +35,54 @@ class ReportExporter:
 
     Args:
         output_directory (str): The directory where the output files will be saved.
+        meeting_name (str): The name of the meeting.
+        summary (str): The summary of the meeting.
+        usage (str): The usage details of the meeting report.
     """
 
-    def __init__(self, output_directory):
+    def __init__(self, output_directory, meeting_name, summary, usage):
         """
-        Initializes a ReportExporter object.
+        Initialize the ReportExporter class.
 
         Args:
             output_directory (str): The directory where the output files will be saved.
+            meeting_name (str): The name of the meeting.
+            summary (str): The summary of the meeting.
+            usage (str): The usage details of the meeting report.
         """
         self.output_directory = output_directory
+        self.meeting_name = meeting_name
+        self.summary = summary
+        self.usage = usage
 
-    def export_txt(self, meeting_name, summary):
+    def _export_text(self):
         """
-        Exports the meeting summary to a text file.
-
-        Args:
-            meeting_name (str): The name of the meeting.
-            summary (str): The summary of the meeting.
+        Export the meeting report to a text file.
         """
-        filename = f"{meeting_name}.txt"
+        filename = f"{self.meeting_name}.txt"
         filepath = os.path.join(self.output_directory, filename)
         with open(filepath, "w", encoding="utf-8") as file:
-            file.write(f"#{meeting_name}\n\n")
+            file.write(f"#{self.meeting_name}\n\n")
             file.write("##會議重點\n")
-            file.write(summary)
+            file.write(self.summary)
 
-    def export_doc(self, meeting_name, summary):
+    def _export_json(self):
         """
-        Exports the meeting summary to a DOC file.
-
-        Args:
-            meeting_name (str): The name of the meeting.
-            summary (str): The summary of the meeting.
+        Export the meeting report to a JSON file.
         """
-        filename = f"{meeting_name}.doc"
+        filename = f"{self.meeting_name}.json"
         filepath = os.path.join(self.output_directory, filename)
-        with open(filepath, "w", encoding="utf-8") as file:
-            file.write(f"#{meeting_name}\n\n")
-            file.write("##會議重點\n")
-            file.write(summary)
-
-    def export_pdf(self, meeting_name, summary):
-        """
-        Exports the meeting summary to a PDF file.
-
-        Args:
-            meeting_name (str): The name of the meeting.
-            summary (str): The summary of the meeting.
-        """
-        filename = f"{meeting_name}.pdf"
-        filepath = os.path.join(self.output_directory, filename)
-
-        summary_lines = summary.split("\n")
-
-        summary_html = ""
-        for line in summary_lines:
-            if line.strip() and line.strip()[0].isdigit():
-                summary_html += f"<p><strong>{line.strip()}</strong></p>"
-            else:
-                summary_html += f"<p>{line.strip()}</p>"
-
-        summary_html += "\n"
-        html_content = f"""
-        <html>
-            <head>
-                <title>{meeting_name}</title>
-            </head>
-            <body>
-                <h1>{meeting_name}</h1>
-                <h2>會議重點</h2>
-                {summary_html}
-            </body>
-        </html>
-        """
-
-        HTML(string=html_content).write_pdf(filepath)
-
-    def export_json(self, meeting_name, summary):
-        """
-        Exports the meeting summary to a JSON file.
-
-        Args:
-            meeting_name (str): The name of the meeting.
-            summary (str): The summary of the meeting.
-        """
-        filename = f"{meeting_name}.json"
-        filepath = os.path.join(self.output_directory, filename)
-
         data = {
-            "meeting_name": meeting_name,
-            "summary": summary,
+            "meeting_name": self.meeting_name,
+            "summary": self.summary,
+            "usage": self.usage,
         }
-
         with open(filepath, "w", encoding="utf-8") as json_file:
             json.dump(data, json_file)
+
+    def export_file(self):
+        """
+        Export the meeting report to both text and JSON formats.
+        """
+        self._export_text()
+        self._export_json()

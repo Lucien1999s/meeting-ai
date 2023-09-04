@@ -13,59 +13,29 @@ Example:
     generator = ReportGenerator()
     summary = generator.generate_report(meeting_transcript)
 """
-import os
 import time
 import logging
 from typing import Tuple
 import openai
 from openai import OpenAIError
 import tiktoken
-from dotenv import load_dotenv
 
-load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 
 class ReportGenerator:
-    """
-    ReportGenerator class provides methods for generating
-    meeting reports using OpenAI API.
 
-    Attributes:
-        model (str): The model used for report generation.
-    """
-
-    def __init__(self):
-        """Initializes a ReportGenerator object.
-
-        Sets the default values for the prompt tokens,
-        completion tokens, and total cost.
-        The OpenAI API key is retrieved from
-        the environment variable OPENAI_API_KEY.
-        """
+    def __init__(self, transcript, model, api_key):
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.total_cost = 0
-        openai.api_key = os.environ.get("OPENAI_API_KEY")
+        self.model = model
+        self.transcript = transcript
+        openai.api_key = api_key
 
     def _call_openai_api(
         self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
     ) -> str:
-        """Calls the OpenAI API for chat completion and returns the response.
-
-        Args:
-            prompt (str): The user's prompt for chat completion.
-            system_prompt (str): The system's prompt for chat completion.
-            temperature (float): Controls the randomness of the response.
-            max_tokens (int): The maximum number of tokens in the
-            generated response.
-
-        Returns:
-            str: The generated chat response.
-
-        Raises:
-            OpenAIError: If there is an error while calling the OpenAI API.
-        """
         token_count = (
             self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens
         )
@@ -100,10 +70,7 @@ class ReportGenerator:
             except OpenAIError as error:
                 logging.error("Error: %s", error)
                 if retry == 2:
-                    logging.error(
-                        "Failed to generate a response after 3 attempts. Aborting."
-                    )
-                    raise
+                    raise OpenAIError("Failed to generate a response after 3 attempts.")
                 logging.warning("Retrying (%d/3) after 10 seconds...", retry + 1)
                 time.sleep(10)
         return ""
@@ -203,7 +170,6 @@ class ReportGenerator:
         logging.info("Successfully generate paragraphs.")
         return paragraphs
 
-
     def _generate_summary(self, paragraphs: str) -> str:
         """
         Generates a summary based on paragraphs.
@@ -231,10 +197,11 @@ class ReportGenerator:
         我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
         你的回應以此開頭：1 ...
         """
+
         prompt = content.format(paragraphs=paragraphs)
         system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來數字條列出會議中的事件並重點敘述每一項事件"
         summary = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=1500
+            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2000
         )
         logging.info("Successfully generate summary.")
         return summary
@@ -356,7 +323,7 @@ class ReportGenerator:
 
         return prompt_tokens, completion_tokens, total_tokens, total_cost
 
-    def generate_report(self, meeting_transcript: str) -> str:
+    def generate_report(self) -> str:
         """Generates a report based on the meeting transcript.
 
         Args:
@@ -365,7 +332,7 @@ class ReportGenerator:
         Returns:
             str: The generated report.
         """
-        transcript_chunks = self._chunk_transcript(meeting_transcript)
+        transcript_chunks = self._chunk_transcript(self.transcript)
         processed_transcripts = self._process_transcripts(transcript_chunks)
         paragraphs = self._generate_paragraph(processed_transcripts)
         summary = self._process_string(self._generate_summary(paragraphs))

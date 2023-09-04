@@ -1,6 +1,7 @@
 import os
 import sys
 import pytest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.speech_to_text import SpeechToTextConverter
@@ -9,6 +10,12 @@ from src.speech_to_text import SpeechToTextConverter
 @pytest.fixture
 def converter():
     return SpeechToTextConverter()
+
+
+@pytest.fixture
+def mock_file_path():
+    with patch("src.speech_to_text.os.path.abspath", return_value="/mock/file/path"):
+        yield
 
 
 def test_get_transcript_usage(converter):
@@ -21,8 +28,8 @@ def test_get_transcript_usage(converter):
     assert cost == expected_cost
 
 
-def test_speech_to_text_api(mocker, converter, tmpdir):
-    file_path = "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/ai_meeting.m4a"
+def test_speech_to_text_api(mocker, converter, tmpdir, mock_file_path):
+    file_path = "/mock/file/path"  # 使用模擬的文件路徑
     use_api = True
     expected_transcript = "This is a test transcript."
     expected_audio_minutes = 90
@@ -50,8 +57,8 @@ def test_speech_to_text_api(mocker, converter, tmpdir):
     assert os.path.exists(str(test_folder))
 
 
-def test_speech_to_text_oss(mocker, converter):
-    file_path = "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/ai_meeting.m4a"
+def test_speech_to_text_oss(mocker, converter, mock_file_path):
+    file_path = "/mock/file/path"  # 使用模擬的文件路徑
     use_api = False
     expected_transcript = "This is a test transcript."
 
@@ -62,4 +69,3 @@ def test_speech_to_text_oss(mocker, converter):
     assert result == expected_transcript
 
     mock_transcribe.assert_called_once_with(file_path)
-

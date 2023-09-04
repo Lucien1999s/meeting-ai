@@ -42,6 +42,12 @@ OPENAI_API_KEY = "Your_OpenAI_API_Key"
 
 ### 4. Set up config.json
 
+- Support audio files
+
+```
+.wav  .mp4  .mp3  .m4a
+```
+
 ```bash
 {
     "file_url": "Your_Audio_File_path",

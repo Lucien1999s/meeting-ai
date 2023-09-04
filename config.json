@@ -1,6 +1,6 @@
 {
-    "file_url": "/Users/lucienlin/pyProjects/lucien-ai-meeting/data/ai_meeting.m4a",
-    "output_url": "/Users/lucienlin/Desktop/work_files",
-    "meeting_name": "AI會議",
-    "use_api": false
+    "file_url": "/Users/lucienlin/aiProjects/lucien-ai-meeting/data/test.m4a",
+    "output_url": "/Users/lucienlin/Desktop/work_files/meeting record",
+    "meeting_name": "test",
+    "model_selection": "api"
 }
