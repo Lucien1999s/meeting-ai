@@ -1,18 +1,20 @@
 # Ignore Python compiled files
 *.py[cod]
+__pycache__/
 
 # Ignore virtual environment files
 env/
 venv/
+
+# Ignore Pipenv files
+Pipfile
+Pipfile.lock
 
 # Ignore ENV files containing secrets
 .env
 
 # Ignore log files  
 *.log
-
-# Ignore Sagemaker files
-sagemaker-training/
 
 # Ignore DS STORE files in Mac 
 .DS_Store
@@ -21,9 +23,6 @@ sagemaker-training/
 .project
 .classpath
 .pydevproject
-
-# Ignore IDE-specific files
-*.sublime-workspace
 
 # Ignore unit test/coverage reports
 coverage.xml      
@@ -39,3 +38,4 @@ nosetests.xml
 
 # Ignore data folder
 data/
+src/whisper_model/

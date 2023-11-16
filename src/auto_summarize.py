@@ -1,274 +1,341 @@
-"""
-This module provides a ReportGenerator class for generating meeting
-reports using the OpenAI API.
+"""Generates reports from meeting transcripts using OpenAI's ChatCompletion API.
 
-It includes the following functionalitie:
-- Generating summaries based on meeting transcripts
+This class provides a convenient interface for processing meeting transcripts and generating detailed reports.
 
-Usage:
-1. Initialize the ReportGenerator object.
-2. Call the `generate_report` method to generate a meeting report.
+Attributes:
+    transcript (str): The input meeting transcript to be processed.
+    model (str): The name of the model to be used for processing the transcript.
+    api_key (str): The API key for accessing the processing service.
+
+Methods:
+    generate_report(): Generates a report from the transcript data.
+    _count_tokens(content, model): Counts the number of tokens in the given content using the specified language model.
+    _split_large_text(large_text, max_tokens): Splits a large text into smaller chunks of a specified maximum token length.
+
+Raises:
+    NotImplementedError: If the specified model is not supported.
+
+Returns:
+    str: The generated report content based on the processed transcript data.
 
 Example:
-    generator = ReportGenerator()
-    summary = generator.generate_report(meeting_transcript)
+    generator = ReportGenerator(
+        transcript=transcript, 
+        model="gpt-3.5-turbo", 
+        api_key="sk-...", 
+        logging_level=logging.INFO
+    )
+    report = generator.generate_report()
+    print(report)
 """
-import time
-import logging
-from typing import Tuple
-import openai
-from openai import OpenAIError
-import tiktoken
 
-logging.basicConfig(level=logging.INFO)
+import re
+import math
+import logging
+from typing import List, Tuple
+
+import tiktoken
+from parallel_process_utils.api_parallel_processor import ParallelProcessor
 
 
 class ReportGenerator:
+    """A class for generating reports using OpenAI's ChatCompletion API."""
 
-    def __init__(self, transcript, model, api_key):
+    def __init__(
+        self,
+        transcript: str,
+        model: str,
+        api_key: str,
+        logging_level: int = logging.INFO,
+    ):
+        """
+        Initializes the instance with the given transcript, model, and API key.
+
+        Args:
+            transcript (str): The transcript to be processed.
+            model (str): The name of the model to be used for processing the transcript.
+            api_key (str): The API key for accessing the processing service.
+            logging_level (int, optional): The logging level for the instance (default is logging.INFO).
+        """
+        self.transcript = transcript
+        self.model = model
         self.prompt_tokens = 0
         self.completion_tokens = 0
-        self.total_cost = 0
-        self.model = model
-        self.transcript = transcript
-        openai.api_key = api_key
-
-    def _call_openai_api(
-        self, prompt: str, system_prompt: str, temperature: float, max_tokens: int
-    ) -> str:
-        token_count = (
-            self._count_tokens(prompt) + self._count_tokens(system_prompt) + max_tokens
+        self.api_key = api_key
+        logging.basicConfig(level=logging_level)
+        self.processor = ParallelProcessor(
+            request_url="https://api.openai.com/v1/chat/completions",
+            api_key=self.api_key,
+            model=self.model,
+            logging_level="CRITICAL",
+            timeout=10,
         )
-        model = "gpt-3.5-turbo-16k" if token_count > 4095 else "gpt-3.5-turbo"
+        self.model_limit = self._get_model_limit()
 
-        for retry in range(3):
-            try:
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=[
+    def _openai_parallel_request(
+        self,
+        prompt_list: list,
+        system_prompt_list: list,
+        max_token: int = 1000,
+        temperature: float = 0.0,
+        max_attempts: int = 3,
+    ) -> list:
+        """
+        Use the Parallel-Processor package to send parallel requests to the OpenAI API and return responses from the assistant.
+        If the response structure is unexpected, the function will attempt to call the API again, up to a maximum number of attempts.
+
+        Args:
+            prompt_list (list): A list of prompts for the assistant.
+            system_prompt_list (list): A list of system prompts for the assistant.
+            max_token (int, optional): The maximum number of tokens that the model can generate. Defaults to 1000.
+            temperature (float, optional): The temperature parameter for the model, controlling the randomness of the output. Defaults to 0.0.
+            max_attempts (int, optional): The maximum number of attempts to call the API if the response structure is unexpected. Defaults to 3.
+
+        Returns:
+            list: A list of the assistant's responses.
+        """
+        for attempt in range(max_attempts):
+            requests_data = [
+                {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt},
                     ],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
+                    "max_tokens": max_token,
+                    "temperature": temperature,
+                }
+                for prompt, system_prompt in zip(prompt_list, system_prompt_list)
+            ]
+            response = self.processor.parallel_request(requests_data=requests_data)
+            logging.info(f"parallel response:{response}")
+
+            try:
+                # Extract assistant's responses
+                assistant_responses = [
+                    item[2]["choices"][0]["message"]["content"] for item in response
+                ]
+
+                # Calculate total prompt tokens and completion tokens
+                self.prompt_tokens += sum(
+                    item[2]["usage"]["prompt_tokens"] for item in response
                 )
-                prompt_tokens = response["usage"]["prompt_tokens"]
-                completion_tokens = response["usage"]["completion_tokens"]
-                cost = self._count_cost(model, prompt_tokens, completion_tokens)
-                res = response["choices"][0]["message"]["content"]
-                self.prompt_tokens += prompt_tokens
-                self.completion_tokens += completion_tokens
-                self.total_cost += cost
+                self.completion_tokens += sum(
+                    item[2]["usage"]["completion_tokens"] for item in response
+                )
 
-                logging.info("Use model: %s", model)
-                logging.info("Prompt tokens: %f", prompt_tokens)
-                logging.info("Completion tokens: %f", completion_tokens)
-                logging.info("Cost: %f USD", cost)
-                logging.info(res)
+                return assistant_responses
+            except Exception as e:
+                logging.error(f"Attempt {attempt+1} failed with error: {e}")
+                if attempt + 1 == max_attempts:
+                    raise e
 
-                return res
-            except OpenAIError as error:
-                logging.error("Error: %s", error)
-                if retry == 2:
-                    raise OpenAIError("Failed to generate a response after 3 attempts.")
-                logging.warning("Retrying (%d/3) after 10 seconds...", retry + 1)
-                time.sleep(10)
-        return ""
-
-    @staticmethod
-    def _chunk_transcript(transcript: str, chunk_size: int = 6000) -> list:
-        """Splits the transcript into chunks of a specified size.
-
-        Args:
-            transcript (str): The transcript to be chunked.
-            chunk_size (int, optional): The maximum size of each chunk.
-            Defaults to 6000.
+    def _get_model_limit(self) -> int:
+        """
+        This method is used to get the maximum context length (in tokens) that a specific OpenAI model can handle.
+        It sends a request with an intentionally large number of tokens, then parses the error message to find the model's limit.
 
         Returns:
-            list: A list of transcript chunks.
-        """
-        transcript_chunks = []
-        current_chunk = ""
-        current_length = 0
-
-        for char in transcript:
-            if current_length < chunk_size:
-                current_chunk += char
-                if "\u4e00" <= char <= "\u9fff":
-                    current_length += 1
-            else:
-                transcript_chunks.append(current_chunk)
-                current_chunk = char
-                current_length = 1
-
-        if current_chunk:
-            transcript_chunks.append(current_chunk)
-
-        logging.info("Split into %d chunks.", len(transcript_chunks))
-        logging.info("Successfully chunked transcripts.")
-        return transcript_chunks
-
-    def _process_transcripts(self, transcript_chunks: list) -> list:
-        """
-        Processes the transcripts chunks and generates descriptive
-        paragraphs for meeting records.
-
-        Args:
-            transcript_chunks (list): List of transcript chunks.
-
-        Returns:
-            list: Processed transcripts as descriptive paragraphs.
-        """
-        content = """
-        會議逐字稿：
-        「{transcript_chunk}」
-        你的任務是將以上會議逐字稿寫成800字長篇會議紀錄敘述段落
-        我要你詳細記錄所有提到的事項和重要內容
-        格式是敘述式段落
-        你的回應以此開頭：在這次會議中...
-        """
-        processed_transcripts = []
-        for transcript_chunk in transcript_chunks:
-            prompt = content.format(transcript_chunk=transcript_chunk)
-            system_prompt = "你是一個會議逐字稿整理專家，專門將會議逐字稿內容寫成會議紀錄敘述段落"
-            processed_transcript = self._call_openai_api(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                temperature=0.1,
-                max_tokens=1200,
-            )
-            processed_transcript = processed_transcript.replace("\n", "")
-            processed_transcripts.append(processed_transcript)
-        logging.info("Successfully processed transcripts.")
-        return processed_transcripts
-
-    def _generate_paragraph(self, processed_transcripts: list) -> str:
-        """
-        Generates paragraphs based on the processed transcripts.
-
-        Args:
-            processed_transcripts (list): The processed transcripts list from
-            the meeting records.
-
-        Returns:
-            str: The generated paragraphs as a string.
-        """
-        content = """
-        以下是一個會議紀錄
-        你看完整個會議錄後，要為這些會議記錄摘要列表重新統整起來寫一個長篇專業會議敘述文
-        會議紀錄：
-        「{processed_transcripts}」
-        必須邏輯清楚的來寫整個會議紀錄的所有討論內容
-        格式上，應以專業報告形式，段落式書寫
-        你的回應以此開頭：在此次會議中...
-        """
-        prompt = content.format(processed_transcripts=processed_transcripts)
-        system_prompt = "你是一個專門為會議記錄進行整理並寫一個長篇專業敘述文的專家"
-        paragraphs = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=3000
-        )
-        logging.info("Successfully generate paragraphs.")
-        return paragraphs
-
-    def _generate_summary(self, paragraphs: str) -> str:
-        """
-        Generates a summary based on paragraphs.
-
-        Args:
-            paragraphs (str): The summaries paragraphs from
-            the meeting records.
-
-        Returns:
-            str: The generated summary as a string.
-        """
-        content = """
-        會議紀錄：
-        「{paragraphs}」
-        你的任務是從以上會議紀錄摘要出討論的事件和相應事件的重點敘述
-        根據討論內容來數字逐列事件，要重點敘述該事件的重點
-        根據會議紀錄中的每件事情適當分類說明
-
-        會議摘要格式：
-        1.[事件標題]：
-        - 事件重點說明...
-        2.[事件標題]：
-        - 事件重點說明...
-
-        我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要
-        你的回應以此開頭：1 ...
-        """
-
-        prompt = content.format(paragraphs=paragraphs)
-        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來數字條列出會議中的事件並重點敘述每一項事件"
-        summary = self._call_openai_api(
-            prompt=prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=2000
-        )
-        logging.info("Successfully generate summary.")
-        return summary
-
-    @staticmethod
-    def _process_string(input_str: str) -> str:
-        """
-        Process the input string and return the processed string.
-
-        Args:
-            input_str (str): The input string to be processed.
-
-        Returns:
-            str: The processed string.
-        """
-        input_str = input_str.replace("[", "").replace("]", "")
-        lines = input_str.split("\n")
-        last_empty_line_index = None
-
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip() == "":
-                last_empty_line_index = i
-                break
-
-        if last_empty_line_index is not None and last_empty_line_index < len(lines) - 1:
-            next_line = lines[last_empty_line_index + 1].strip()
-            if not next_line[0].isdigit():
-                output_str = "\n".join(lines[:last_empty_line_index])
-            else:
-                output_str = input_str
-        else:
-            output_str = input_str
-
-        return output_str
-
-    @staticmethod
-    def _count_cost(
-        model: str, prompt_tokens: float, completion_tokens: float
-    ) -> float:
-        """
-        Count the cost of using the language model based on the model type and token counts.
-
-        Args:
-            model (str): The name of the language model.
-            prompt_tokens (float): The number of tokens in the prompt.
-            completion_tokens (float): The number of tokens in the completion.
-
-        Returns:
-            float: The calculated cost.
-        """
-        if model == "gpt-3.5-turbo":
-            return (prompt_tokens / 1000) * 0.0015 + (completion_tokens / 1000) * 0.002
-        return (prompt_tokens / 1000) * 0.003 + (completion_tokens / 1000) * 0.004
-
-    def _count_tokens(self, content: str, model: str = "gpt-3.5-turbo-0613") -> int:
-        """
-        Returns the number of tokens used by a list of messages.
-
-        Args:
-            content (str): The content of the message.
-            model (str, optional): The name of the language model. Defaults to "gpt-3.5-turbo-0613".
-
-        Returns:
-            int: The number of tokens used by the messages.
+            int: The maximum context length (in tokens) that the model can handle.
 
         Raises:
-            NotImplementedError: If the specified model is not implemented.
+            ValueError: If the error message does not contain the expected information.
+        """
+        # Set up logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.ERROR)
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        logger.addHandler(handler)
+
+        requests_data = [
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "user", "content": "Hello"},
+                ],
+                "max_tokens": 1000000000,
+                "temperature": 0.1,
+            }
+        ]
+        try:
+            response = self.processor.parallel_request(requests_data=requests_data)
+            error_message = response[0][2]["error"]["message"]
+            match = re.search(
+                r"This model's maximum context length is (\d+)", error_message
+            )
+            if match:
+                max_context_length = int(match.group(1))- 100
+                logging.info(max_context_length)
+                return max_context_length
+            else:
+                raise ValueError(
+                    "Could not find the model's maximum context length in the error message."
+                )
+        except Exception as e:
+            logger.error(
+                f"An error occurred while trying to get the model's maximum context length: {e}"
+            )
+            raise
+
+    def _best_choice_split(self, split_data: str) -> Tuple[List[str], bool]:
+        """
+        Splits the input data into chunks based on the model's token limit.
+
+        This function calculates the total tokens in the input data and splits it into chunks. Each chunk is 
+        designed to be within the model's token limit when combined with completion and prompt tokens. If the 
+        total tokens are within the model limit, the function returns the whole transcript. The function also 
+        adjusts the size of other chunks if the last chunk is smaller than the minimum chunk length.
+
+        Args:
+            split_data (str): The input data to be split into chunks.
+
+        Returns:
+            list: A list of chunks obtained from the input data.
+            bool: A boolean value indicating whether the total tokens are within the model limit.
+        """
+
+        # Constants for completion and prompt tokens, and minimum chunk length
+        COMPLETION_TOKEN = 1000
+        PROMPT_TOKEN = 200
+        CHUNK_MIN_LENGTH = 1000
+        pass_limit = False
+
+        # Calculate total tokens in the transcript including completion and prompt tokens
+        transcript_token = self._count_tokens(split_data)
+        total_tokens = transcript_token + COMPLETION_TOKEN + PROMPT_TOKEN
+        logging.info(f"tokens:{transcript_token}")
+        logging.info(f"tokens:{total_tokens}")
+        # If total tokens are within the model limit, return the whole transcript
+        if total_tokens + 1000 < self.model_limit:
+            logging.info(f"Chunk length: 1, pass limit: {total_tokens + 1000} tokens")
+            pass_limit = True
+            return [split_data], pass_limit
+
+        # Calculate the maximum number of tokens that can be used for the transcript in each chunk
+        available_chunk_space = self.model_limit - COMPLETION_TOKEN - PROMPT_TOKEN
+
+        # Calculate the number of tokens in the last chunk
+        last_chunk_space = transcript_token % available_chunk_space
+
+        # If the last chunk is smaller than the minimum chunk length, adjust the size of other chunks
+        if last_chunk_space < CHUNK_MIN_LENGTH:
+            space_for_remaining_chunks = transcript_token - CHUNK_MIN_LENGTH
+            best_chunk = math.ceil(
+                space_for_remaining_chunks / (transcript_token // available_chunk_space)
+            )
+        else:
+            best_chunk = available_chunk_space
+
+        # Split the transcript into chunks
+        chunks = self._split_large_text(large_text=split_data, max_tokens=best_chunk)
+        logging.info(f"Best chunk size:{best_chunk} tokens")
+        logging.info(f"Chunk length:{len(chunks)}")
+        return chunks, pass_limit
+
+    def _preprocess_chunks(self, chunks: list) -> list:
+        """
+        This method preprocesses the given chunks of transcripts and converts them into a list of summaries.
+
+        Args:
+            chunks (list): A list of transcript chunks to be preprocessed.
+
+        Returns:
+            summary_list (list): A list of preprocessed summaries corresponding to the input chunks.
+
+        The function logs the start and successful completion of the preprocessing task.
+        """
+        logging.info("Start preprocessing transcripts.")
+        CONTENT = """會議逐字稿：\n「{chunk}」\n你的任務是將以上會議逐字稿寫成1000字長篇會議紀錄敘述段落，\
+        我要你詳細記錄所有提到的事項和重要內容，格式是敘述式段落，你的回應以此開頭：在這次會議中...
+        """
+        prompt_list = [CONTENT.format(chunk=c) for c in chunks]
+        system_prompt_list = [
+            "你是一個會議逐字稿整理專家，專門將會議逐字稿內容寫成會議紀錄敘述段落" for _ in range(len(chunks))
+        ]
+        summary_list = self._openai_parallel_request(
+            prompt_list=prompt_list, system_prompt_list=system_prompt_list
+        )
+        logging.info("Transcript preprocessed successfully.")
+        return summary_list
+
+    def _generate_report_content(self, data: str) -> str:
+        """
+        This method generates a report content from the given data.
+
+        Args:
+            data (str): The data to be processed into a report.
+
+        Returns:
+            report_content (str): The generated report content based on the input data.
+
+        The function logs the successful generation of the report content.
+        """
+        logging.info("Start generating report content.")
+        content = """會議紀錄：\n「{data}」\n你的任務是從以上會議紀錄摘要出討論的事件和相應事件的重點敘述，根據討論內容來數字逐列事件，要重點敘述該事件的重點\
+        根據會議紀錄中的每件事情適當分類說明\n會議摘要格式：\n1.[事件標題]：\n- 事件重點說明...\n2.[事件標題]：\n- 事件重點說明...\
+        \n我要你潤飾文字和修正錯字，並且寫易讀性高的會議摘要\n你的回應以此開頭：1 ..."""
+        prompt = content.format(data=data)
+        system_prompt = "你是一個會議紀錄分析師，你會根據會議紀錄來數字條列出會議中的事件並重點敘述每一項事件"
+        report_content = self._openai_parallel_request(
+            prompt_list=[prompt],
+            system_prompt_list=[system_prompt],
+            max_token=2000,
+        )
+        logging.info("Summary generated successfully.")
+        return report_content
+
+    def get_spent_tokens(self) -> dict:
+        """
+        Retrieves the usage statistics of the instance.
+
+        Returns:
+            dict: A dictionary with keys 'prompt tokens' and 'completion tokens', and their respective usage counts as values.
+        """
+        return {
+            "text model": self.model,
+            "prompt tokens": self.prompt_tokens,
+            "completion tokens": self.completion_tokens,
+        }
+
+    def generate_report(self) -> str:
+        """
+        Generates a summary report based on the transcript data.
+
+        This function calculates the best method to split the transcript data into chunks. 
+        It keeps digesting the data until it reaches a specific size. 
+        Then, it uses specific prompts to generate summary reports in a specific format.
+
+        Returns:
+            str: The first element of the generated report content.
+        """
+        # Calculate the best cutting method and keep digesting to a specific size
+        chunks, _ = self._best_choice_split(split_data=self.transcript)
+        while True:
+            summary_list = self._preprocess_chunks(chunks=chunks)
+            chunks, pass_limit = self._best_choice_split(split_data="".join(summary_list))
+            if pass_limit:
+                break
+        # Use specific prompts to generate summary reports in specific formats
+        report_content = self._generate_report_content(data=str(chunks))
+        return report_content[0]
+
+    @staticmethod
+    def _count_tokens(content: str, model: str = "gpt-3.5-turbo-0613") -> int:
+        """
+        Count the number of tokens in the given content using the specified language model.
+
+        Args:
+            content (str): The content to count tokens for.
+            model (str, optional): The language model to use (default is "gpt-3.5-turbo-0613").
+
+        Returns:
+            int: The total number of tokens in the content.
+
+        Raises:
+            NotImplementedError: If the specified model is not supported.
         """
         messages = [
             {
@@ -279,7 +346,7 @@ class ReportGenerator:
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
-            logging.warning("Warning: model not found. Using cl100k_base encoding.")
+            print("Warning: model not found. Using cl100k_base encoding.")
             encoding = tiktoken.get_encoding("cl100k_base")
         if model in {
             "gpt-3.5-turbo-0613",
@@ -308,32 +375,30 @@ class ReportGenerator:
         num_tokens += 3
         return num_tokens
 
-    def get_report_usage(self) -> Tuple[int, int, int, float]:
-        """Calculate the report usage.
-
-        Returns:
-            Tuple[int, int, int, float]: A tuple containing
-            the prompt tokens, completion tokens,
-            total tokens, and total cost.
+    @staticmethod
+    def _split_large_text(large_text: str, max_tokens: int) -> list:
         """
-        prompt_tokens = self.prompt_tokens
-        completion_tokens = self.completion_tokens
-        total_tokens = prompt_tokens + completion_tokens
-        total_cost = self.total_cost
-
-        return prompt_tokens, completion_tokens, total_tokens, total_cost
-
-    def generate_report(self) -> str:
-        """Generates a report based on the meeting transcript.
+        Splits a large text into smaller chunks of a specified maximum token length.
 
         Args:
-            meeting_transcript (str): The meeting transcript as a string.
+            large_text (str): The large text that needs to be split into smaller chunks.
+            max_tokens (int): The maximum number of tokens that each chunk of text can contain.
 
         Returns:
-            str: The generated report.
+            list: A list of text chunks, each containing no more than the specified maximum number of tokens.
         """
-        transcript_chunks = self._chunk_transcript(self.transcript)
-        processed_transcripts = self._process_transcripts(transcript_chunks)
-        paragraphs = self._generate_paragraph(processed_transcripts)
-        summary = self._process_string(self._generate_summary(paragraphs))
-        return summary
+        enc = tiktoken.get_encoding("cl100k_base")
+        tokenized_text = enc.encode(large_text)
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        for token in tokenized_text:
+            current_chunk.append(token)
+            current_length += 1
+            if current_length >= max_tokens:
+                chunks.append(enc.decode(current_chunk).rstrip(" .,;"))
+                current_chunk = []
+                current_length = 0
+        if current_chunk:
+            chunks.append(enc.decode(current_chunk).rstrip(" .,;"))
+        return chunks

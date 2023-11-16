@@ -1,145 +1,132 @@
 """
-Main code: Extracts text from an audio file and generates a meeting report.
+This program includes methods for transcribing, summarizing and exporting meeting minutes. 
+It converts a voice file into summary meeting minutes through the user's parameter settings.
 
-This function performs the following steps:
-1. Retrieves the audio file from the specified URL.
-2. Converts the speech to text using the SpeechToTextConverter class.
-3. Generates a meeting report using the MeetingReportGenerator class.
-4. Export the meeting report.
+It uses:
+- `SpeechToTextConverter` for transcription
+- `ReportGenerator` for summary
+- `ReportExporter` for exporting the summary and usage details
 
-Args:
-    None
-
-Returns:
-    None
-
-Modules:
-    - src.speech_to_text: Contains the SpeechToTextConverter class for converting speech to text.
-    - src.auto_summarize: Contains the ReportGenerator class for generating meeting reports.
-    - src.export_records: Contains the ReportExporter class for exporting reports.
-
-Usage Example:
-    # Convert speech to text
-    converter = SpeechToTextConverter(file_url, model_selection, api_key)
-    transcript = converter.speech_to_text()
-    audio_minutes, transcript_cost = converter.get_transcript_usage()
-
-    # Generate meeting report
-    report_generator = ReportGenerator(transcript, api_key)
-    summary = report_generator.generate_report()
-
-    # Calculate report usage
-    prompt_tokens, completion_tokens, total_tokens, report_cost = report_generator.get_report_usage()
-
-    # Export the report
-    exporter = ReportExporter(output_url, meeting_name, summary, usage)
-    exporter.export_file()
+Example:
+    meeting_ai(
+        meeting_name="Team Meeting", 
+        file_path="/path/to/audio/file.wav", 
+        api_key="your_openai_api_key",  
+        audio_model="base", 
+        text_model="gpt-3.5-turbo",
+        output_path="/path/to/output",
+        save_transcript=True,
+        show_txt_cost=True
+    )
 """
+
 import os
-import json
 import logging
-import openai
+
 from src.speech_to_text import SpeechToTextConverter
 from src.auto_summarize import ReportGenerator
 from src.export_records import ReportExporter
+
 from dotenv import load_dotenv
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
 
 
-def main():
+def meeting_ai(
+    meeting_name: str,
+    file_path: str,
+    api_key: str,
+    audio_model: str = "base",
+    text_model: str = "gpt-3.5-turbo",
+    transcript_path: str = None,
+    output_path: str = None,
+    save_transcript: bool = False,
+    show_txt_cost: bool = False,
+    logging_level: int = logging.INFO,
+):
     """
-    Main function for generating and exporting meeting reports based on provided configuration.
+    Transcribes a meeting, generates a summary report, and exports the results.
 
-    This function reads configuration parameters from a JSON file, processes meeting information,
-    converts audio to transcript using a speech-to-text converter, generates a meeting report,
-    calculates usage metrics, and exports the results in JSON and text formats.
-
-    Raises:
-        FileNotFoundError: If the input file specified in the configuration is not found.
+    Args:
+        meeting_name (str): The name of the meeting.
+        file_path (str): The path to the audio file of the meeting.
+        api_key (str): The API key for OpenAI.
+        audio_model (str, optional): The model to be used for audio transcription. Defaults to "base".
+        text_model (str, optional): The model to be used for text generation. Defaults to "gpt-3.5-turbo".
+        transcript_path (str): The path where can read transcript from it, and don't need to use SpeechToTextConverter Class.
+        output_path (str, optional): The path where the output files should be saved. Defaults to None.
+        save_transcript (bool, optional): If True, the transcript will be saved to the output path. Defaults to False.
+        show_txt_cost (bool, optional): If True, the cost of text generation will be shown. Defaults to False.
+        logging_level (int, optional): The level of logging to be used. Defaults to logging.INFO.
     """
-    try:
-        # Read parameters from json file
-        config_path = "config.json"
-        with open(config_path, encoding="utf-8") as config_file:
-            config = json.load(config_file)
 
-        file_url = config["file_url"]
-        output_url = config["output_url"]
-        meeting_name = config["meeting_name"]
-        model_selection = config["model_selection"]
+    # Initial variable and settings
+    logging.basicConfig(level=logging_level)
+    usage = {}
 
-        if not os.path.exists(file_url):
-            raise FileNotFoundError("File not found: " + file_url)
-
-        if not os.path.exists(output_url):
-            output_url = os.path.dirname(os.path.abspath(__file__))
-
-    except Exception as e:
-        logging.info("An error occurred:", e)
-        return
-
-    # Initialize parameters of usage
-    costs = {
-        "audio_minutes": 0.0,
-        "transcript_cost": 0.0,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
-        "report_cost": 0.0,
-    }
-    # Audio length threshold
-    audio_max_length = 240
-
-    # Get OpenAI API Key
-    openai.api_key = os.environ.get("OPENAI_API_KEY")
-    api_key = openai.api_key
-
-    # Speech to text
-    model = "whisper-1" if model_selection == "api" else "small"
-    converter = SpeechToTextConverter(file_url, model, api_key)
-
-    # Make sure if exceed audio max length
-    costs["audio_minutes"] = converter.get_audio_minutes()
-    if costs["audio_minutes"] > audio_max_length:
-        logging.warn("Audio files cannot exceed 4 hours.")
-        return
-
-    # Make sure if transcript exist or use speech to text
-    transcript_file = os.path.join(
-        os.path.dirname(file_url),
-        os.path.basename(file_url).replace(
-            os.path.splitext(file_url)[1], "_transcript.txt"
-        ),
-    )
-    if os.path.exists(transcript_file):
-        # Use existing transcript file
-        with open(transcript_file, "r", encoding="utf-8") as transcript_file:
-            transcript = transcript_file.read()
+    # Use the SpeechToTextConverter class to convert speech to text
+    if transcript_path:
+        with open(transcript_path, "r",encoding="utf-8") as file:
+            transcript = file.read()
+        usage["audio cost"] = {"audio model": None, "audio minutes": 0}
+        logging.info(f"Completed read transcript from {transcript_path}")
     else:
-        # Use speech-to-text class
+        converter = SpeechToTextConverter(
+            file_path=file_path,
+            model=audio_model,
+            api_key=api_key,
+            save_transcript=save_transcript,
+            output_path=output_path,
+            logging_level=logging_level,
+        )
         transcript = converter.speech_to_text()
-        costs["transcript_cost"] = converter.get_transcript_cost()
+        usage["audio cost"] = converter.get_audio_usage()
 
-    # Generate report by using ReportGenerator
-    report_generator = ReportGenerator(transcript, "gpt-3.5-turbo-16k",api_key)
-    summary = report_generator.generate_report()
+    # Use class ReportGenerator to generate summary reports
+    generator = ReportGenerator(
+        transcript=transcript,
+        model=text_model,
+        api_key=api_key,
+        logging_level=logging.INFO,
+    )
+    report = generator.generate_report()
+    usage["text cost"] = generator.get_spent_tokens()
+    logging.info(f"Report content:{report}")
 
-    # Get usage information
-    (
-        costs["prompt_tokens"],
-        costs["completion_tokens"],
-        costs["total_tokens"],
-        costs["report_cost"],
-    ) = report_generator.get_report_usage()
-
-    logging.info(costs)
-
-    # Export the result by using ReportExporter (json, txt)
-    exporter = ReportExporter(output_url, meeting_name, summary, costs)
-    exporter.export_file()
+    # Use class ReportExporter to export the results
+    exporter = ReportExporter(
+        meeting_name=meeting_name, summary=report, usage=usage, output_path=output_path
+    )
+    exporter.export_txt(show_cost=show_txt_cost)
+    exporter.export_json()
 
 
+# Example
 if __name__ == "__main__":
-    main()
+    # Define by user
+    meeting_name = "商業數據力課程摘要"
+    file_path = (
+        "/Users/lucienlin/Projects/intelligent-world-projects/meeting-ai/data/商業數據力.m4a"
+    )
+    audio_model = "api"
+    text_model = "gpt-3.5-turbo"
+    api_key = os.getenv("API_KEY")
+    output_path = "/Users/lucienlin/Desktop"
+    transcript_path = "/Users/lucienlin/Desktop/商業數據力_transcript.txt"
+    save_transcript = True
+    show_txt_cost = False
+    logging_level = logging.INFO
+
+    # Excute meeting ai
+    meeting_ai(
+        meeting_name=meeting_name,
+        file_path=file_path,
+        api_key=api_key,
+        audio_model=audio_model,
+        text_model=text_model,
+        transcript_path=transcript_path,
+        output_path=output_path,
+        save_transcript=save_transcript,
+        show_txt_cost=show_txt_cost,
+        logging_level=logging_level,
+    )
