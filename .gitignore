@@ -1,0 +1,41 @@
+# Ignore Python compiled files
+*.py[cod]
+__pycache__/
+
+# Ignore virtual environment files
+env/
+venv/
+
+# Ignore Pipenv files
+Pipfile
+Pipfile.lock
+
+# Ignore ENV files containing secrets
+.env
+
+# Ignore log files  
+*.log
+
+# Ignore DS STORE files in Mac 
+.DS_Store
+
+# Ignore Eclipse files
+.project
+.classpath
+.pydevproject
+
+# Ignore unit test/coverage reports
+coverage.xml      
+htmlcov/                     
+.tox/          
+.pytest_cache/        
+nosetests.xml
+
+# Ignore Python egg files    
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignore data folder
+data/
+src/whisper_model/
